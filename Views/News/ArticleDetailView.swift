@@ -19,68 +19,87 @@ struct ArticleDetailView: View {
     @AppStorage("textSizeIndex") private var textSizeIndex = 1
 
     var body: some View {
-        VStack(spacing: 0) {
-            // --- HEADER CUSTOMIZADO ---
-            ZStack(alignment: .bottom) {
-                TBTheme.highlightGradient
-                    .ignoresSafeArea(edges: .top)
-                
-                HStack(alignment: .center) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "chevron.left")
-                            .foregroundStyle(.white)
+        ZStack(alignment: .leading) {
+            VStack(spacing: 0) {
+                // --- HEADER CUSTOMIZADO ---
+                ZStack(alignment: .bottom) {
+                    TBTheme.highlightGradient
+                        .ignoresSafeArea(edges: .top)
+                    
+                    HStack(alignment: .center) {
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(systemName: "chevron.left")
+                                .foregroundStyle(.white)
+                        }
+                        .buttonWithGlassEffect()
+                        .frame(width: 44, alignment: .leading)
+                        
+                        Spacer()
+                        
+                        Image("tb-logo")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(height: 26)
+                        
+                        Spacer()
+                        
+                        Button {
+                            showShareSheet = true
+                        } label: {
+                            Image(systemName: "square.and.arrow.up")
+                                .foregroundStyle(.white)
+                        }
+                        .buttonWithGlassEffect()
+                        .frame(width: 44, alignment: .trailing)
                     }
-                    .buttonWithGlassEffect()
-                    .frame(width: 44, alignment: .leading)
-                    
-                    Spacer()
-                    
-                    Image("tb-logo")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(height: 26)
-                    
-                    Spacer()
-                    
-                    Button {
-                        showShareSheet = true
-                    } label: {
-                        Image(systemName: "square.and.arrow.up")
-                            .foregroundStyle(.white)
-                    }
-                    .buttonWithGlassEffect()
-                    .frame(width: 44, alignment: .trailing)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 12)
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 12)
+                .frame(height: 100)
+
+                // --- CONTEÚDO ---
+                ZStack {
+                    ArticleWebView(
+                        article: article,
+                        isLoading: $isLoading,
+                        colorScheme: colorScheme,
+                        textSizeIndex: textSizeIndex
+                    )
+                    .ignoresSafeArea(edges: .bottom)
+                    // ✅ Ajuste: Só mostra o WebView quando não estiver mais carregando
+                    // Isso evita que o usuário veja o site original sendo "ajustado"
+                    .opacity(isLoading ? 0 : 1)
+                    .animation(.easeInOut(duration: 0.2), value: isLoading)
+
+                    if isLoading {
+                        Color(.systemBackground)
+                            .ignoresSafeArea()
+                            .overlay {
+                                VStack(spacing: 12) {
+                                    ProgressView()
+                                    Text("Carregando...")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                    }
+                }
             }
-            .frame(height: 100)
-
-            // --- CONTEÚDO ---
-            ZStack {
-                ArticleWebView(
-                    article: article,
-                    isLoading: $isLoading,
-                    colorScheme: colorScheme,
-                    textSizeIndex: textSizeIndex
-                )
-                .ignoresSafeArea(edges: .bottom)
-
-                if isLoading {
-                    Color(.systemBackground)
-                        .ignoresSafeArea()
-                        .overlay {
-                            VStack(spacing: 12) {
-                                ProgressView()
-                                Text("Carregando...")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+            
+            // ✅ GESTO INVISÍVEL PARA VOLTAR (SWIPE BACK)
+            Color.clear
+                .frame(width: 30)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 20)
+                        .onEnded { value in
+                            if value.translation.width > 100 {
+                                dismiss()
                             }
                         }
-                }
-            }
+                )
         }
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarHidden(true)
@@ -148,9 +167,8 @@ struct ArticleWebView: UIViewRepresentable {
     }
 
     func updateUIView(_ webView: WKWebView, context: Context) {
-        DispatchQueue.main.async {
-            webView.evaluateJavaScript(buildScript()) { _, _ in }
-        }
+        // ✅ Ajuste: Removemos a atualização contínua aqui para evitar re-execução desnecessária
+        // O script já roda no didFinish do Coordinator
     }
 
     func makeCoordinator() -> Coordinator {
@@ -196,7 +214,6 @@ struct ArticleWebView: UIViewRepresentable {
                 extractedAuthor = authorEl.innerText.trim();
             }
 
-            // Limpeza de UI (Adicionado 'nav.tags' e '.post-tags')
             ['header', '.container-header-bar', '#breadcrumbs', '#tb-banner-google', 'footer', 'aside', '.sidebar', '.comments-area', '.tb-related', 'nav.tags', '.post-tags'].forEach(function(sel) {
                 try { document.querySelectorAll(sel).forEach(el => el.parentNode && el.parentNode.removeChild(el)); } catch(e) {}
             });
@@ -210,7 +227,6 @@ struct ArticleWebView: UIViewRepresentable {
 
             if (content) {
                 var clone = content.cloneNode(true);
-                // Remove tags que possam estar dentro do clone do conteúdo
                 clone.querySelectorAll('nav.tags, .post-tags').forEach(el => el.remove());
                 document.body.innerHTML = '';
                 document.body.appendChild(clone);
@@ -233,7 +249,6 @@ struct ArticleWebView: UIViewRepresentable {
             var css = 'html, body { background: ' + bg + ' !important; } body { margin: 0 !important; padding: 0 !important; color: ' + text + ' !important; font-family: -apple-system, sans-serif !important; font-size: ' + fontSize + 'px !important; line-height: 1.75 !important; }';
             css += 'a { color: ' + link + ' !important; text-decoration: none !important; } .entry-content, article { padding: 0 16px 80px 16px !important; }';
             css += 'img { max-width: 100% !important; height: auto !important; border-radius: 8px !important; margin: 12px 0 !important; }';
-            // Reforço via CSS para esconder tags
             css += 'nav.tags, .post-tags { display: none !important; }';
             var s = document.createElement('style');
             s.id = 'tb-theme';
@@ -251,15 +266,18 @@ struct ArticleWebView: UIViewRepresentable {
             self.buildScript = buildScript
         }
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            // ✅ Ajuste: Executamos o script e esperamos 300ms antes de mostrar o conteúdo
+            // Esse tempo é suficiente para o motor do WebKit redesenhar a página limpa
             webView.evaluateJavaScript(buildScript()) { _, _ in
-                self.isLoading = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    self.isLoading = false
+                }
             }
         }
     }
 }
 
-// MARK: - Helpers Adicionais
-
+// MARK: - Helpers Adicionais (Resto do código sem alterações)
 extension View {
     func buttonWithGlassEffect() -> some View {
         modifier(ButtonWithGlassEffect())

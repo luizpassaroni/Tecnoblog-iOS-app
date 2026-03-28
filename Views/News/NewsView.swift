@@ -17,20 +17,19 @@ struct NewsView: View {
         VStack(spacing: 0) {
             // --- HEADER FIXO (LOGO CENTRALIZADO) ---
             ZStack(alignment: .bottom) {
-                // Fundo gradiente
                 TBTheme.highlightGradient
                 
                 HStack {
                     Spacer()
-                    Image("tb-logo") // Seu SVG centralizado
+                    Image("tb-logo")
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(height: 28) // Altura para ficar elegante
+                        .frame(height: 28)
                     Spacer()
                 }
                 .padding(.bottom, 12)
             }
-            .frame(height: 100) // Altura que cobre o notch + espaço do logo
+            .frame(height: 100)
             
             // --- LISTA DE NOTÍCIAS ---
             ZStack {
@@ -41,14 +40,10 @@ struct NewsView: View {
                 }
             }
         }
-        // ESTA LINHA É A CHAVE: Faz a tela inteira começar no topo do vidro
         .ignoresSafeArea(edges: .top)
-        
-        // Remove barras fantasmas
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarHidden(true)
-        
         .task {
             viewModel.setup(context: modelContext)
             await viewModel.loadArticles()
@@ -59,7 +54,6 @@ struct NewsView: View {
     private var articleList: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
-                // Espaço invisível para a primeira notícia não ficar colada no azul
                 Color.clear.frame(height: 10)
                 
                 ForEach(viewModel.articles) { article in
@@ -70,6 +64,21 @@ struct NewsView: View {
                     }
                     .buttonStyle(.plain)
                     Divider().padding(.leading, 16)
+                    // ✅ GATILHO DE SCROLL INFINITO:
+                    .onAppear {
+                        if article.id == viewModel.articles.last?.id {
+                            Task {
+                                await viewModel.loadArticles()
+                            }
+                        }
+                    }
+                }
+
+                // ✅ INDICADOR DE CARREGAMENTO NO RODAPÉ
+                if viewModel.isLoading && !viewModel.articles.isEmpty {
+                    ProgressView()
+                        .padding(.vertical, 32)
+                        .frame(maxWidth: .infinity)
                 }
             }
         }
