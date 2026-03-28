@@ -14,41 +14,42 @@ struct PodcastView: View {
     @Environment(\.modelContext) private var modelContext
 
     var body: some View {
-        ZStack {
-            if viewModel.isLoading && viewModel.episodes.isEmpty {
-                loadingView
-            } else if viewModel.episodes.isEmpty {
-                emptyView
-            } else {
-                episodeList
+        VStack(spacing: 0) {
+            // --- HEADER FIXO (ESTILO SITE) ---
+            ZStack(alignment: .bottom) {
+                TBTheme.highlightGradient
+                
+                HStack {
+                    Spacer()
+                    Image("tb-logo")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(height: 28)
+                    Spacer()
+                }
+                .padding(.bottom, 12)
+            }
+            .frame(height: 100)
+            
+            // --- CONTEÚDO ---
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    PodcastHeaderView()
+                    
+                    ForEach(viewModel.episodes) { episode in
+                        PodcastEpisodeCardView(episode: episode)
+                        Divider().padding(.leading, 16)
+                    }
+                }
             }
         }
-        .navigationTitle("Tecnocast")
-        .navigationBarTitleDisplayMode(.large)
+        .ignoresSafeArea(edges: .top) // Garante que o azul encoste no topo
+        .toolbar(.hidden, for: .navigationBar)
+        .navigationBarHidden(true)
         .task {
             viewModel.setup(context: modelContext)
             await viewModel.loadEpisodes()
         }
         .refreshable { await viewModel.loadEpisodes() }
-    }
-
-    private var episodeList: some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
-                PodcastHeaderView()
-                ForEach(viewModel.episodes) { episode in
-                    PodcastEpisodeCardView(episode: episode)
-                    Divider().padding(.leading, 16)
-                }
-            }
-        }
-    }
-
-    private var loadingView: some View {
-        ProgressView("Carregando Tecnocast...").frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private var emptyView: some View {
-        ContentUnavailableView("Sem episódios", systemImage: "mic.slash")
     }
 }

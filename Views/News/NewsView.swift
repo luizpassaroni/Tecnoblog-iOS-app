@@ -11,42 +11,57 @@ import SwiftData
 
 struct NewsView: View {
     @Environment(NewsViewModel.self) private var viewModel
-    @Environment(PodcastViewModel.self) private var podcastViewModel
     @Environment(\.modelContext) private var modelContext
 
     var body: some View {
-        ZStack {
-            if viewModel.articles.isEmpty && !viewModel.isLoading {
-                emptyView
-            } else if let error = viewModel.errorMessage, viewModel.articles.isEmpty {
-                errorView(error)
-            } else {
-                articleList
+        VStack(spacing: 0) {
+            // --- HEADER FIXO (LOGO CENTRALIZADO) ---
+            ZStack(alignment: .bottom) {
+                // Fundo gradiente
+                TBTheme.highlightGradient
+                
+                HStack {
+                    Spacer()
+                    Image("tb-logo") // Seu SVG centralizado
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(height: 28) // Altura para ficar elegante
+                    Spacer()
+                }
+                .padding(.bottom, 12)
             }
+            .frame(height: 100) // Altura que cobre o notch + espaço do logo
             
-            if viewModel.isLoading && viewModel.articles.isEmpty {
-                loadingView.background(Color(.systemBackground))
+            // --- LISTA DE NOTÍCIAS ---
+            ZStack {
+                if viewModel.articles.isEmpty && !viewModel.isLoading {
+                    emptyView
+                } else {
+                    articleList
+                }
             }
         }
-        .navigationTitle("Tecnoblog")
-        .navigationBarTitleDisplayMode(.large)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                if viewModel.isLoading { ProgressView() }
-            }
-        }
+        // ESTA LINHA É A CHAVE: Faz a tela inteira começar no topo do vidro
+        .ignoresSafeArea(edges: .top)
+        
+        // Remove barras fantasmas
+        .toolbar(.hidden, for: .navigationBar)
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarHidden(true)
+        
         .task {
             viewModel.setup(context: modelContext)
             await viewModel.loadArticles()
         }
-        .refreshable {
-            await viewModel.loadArticles(refresh: true)
-        }
+        .refreshable { await viewModel.loadArticles(refresh: true) }
     }
 
     private var articleList: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
+                // Espaço invisível para a primeira notícia não ficar colada no azul
+                Color.clear.frame(height: 10)
+                
                 ForEach(viewModel.articles) { article in
                     NavigationLink(destination: ArticleDetailView(article: article)) {
                         ArticleCardView(article: article, style: .cover) {
@@ -54,40 +69,13 @@ struct NewsView: View {
                         }
                     }
                     .buttonStyle(.plain)
-                    .onAppear {
-                        if article == viewModel.articles.last {
-                            Task { await viewModel.loadArticles() }
-                        }
-                    }
                     Divider().padding(.leading, 16)
                 }
             }
         }
     }
 
-    private var loadingView: some View {
-        VStack(spacing: 16) {
-            ProgressView()
-            Text("Carregando notícias...")
-                .foregroundStyle(.secondary)
-                .font(.subheadline)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
     private var emptyView: some View {
-        ContentUnavailableView("Sem notícias", systemImage: "newspaper", description: Text("Nenhuma notícia encontrada."))
-    }
-
-    private func errorView(_ message: String) -> some View {
-        ContentUnavailableView {
-            Label("Erro ao carregar", systemImage: "exclamationmark.triangle")
-        } description: {
-            Text(message)
-        } actions: {
-            Button("Tentar novamente") { Task { await viewModel.loadArticles(refresh: true) } }
-                .buttonStyle(.borderedProminent)
-                .tint(TBTheme.accent)
-        }
+        ContentUnavailableView("Sem notícias", systemImage: "newspaper")
     }
 }

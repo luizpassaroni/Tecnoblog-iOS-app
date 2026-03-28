@@ -9,162 +9,125 @@
 import SwiftUI
 
 struct SettingsView: View {
-    // 0 = Sistema, 1 = Claro, 2 = Escuro
     @AppStorage("appTheme") private var appTheme = 0
     @AppStorage("notificationsEnabled") private var notificationsEnabled = false
     @Environment(\.openURL) private var openURL
 
-    var body: some View {
-        NavigationStack {
-            List {
-                // Sobre o app
-                aboutSection
-
-                // Aparência (Tema)
-                appearanceSection
-
-                // Notificações
-                notificationsSection
-
-                // Links úteis
-                linksSection
-
-                // Info do app
-                appInfoSection
-            }
-            .navigationTitle("Ajustes")
-            .listStyle(.insetGrouped)
-        }
+    // MARK: - Propriedades Dinâmicas (Lê do Xcode automaticamente)
+    
+    private var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
     }
 
-    // MARK: - Sections
+    private var buildNumber: String {
+        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+    }
 
-    private var aboutSection: some View {
-        Section {
-            HStack(spacing: 16) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(TBTheme.highlightGradient)
-                        .frame(width: 64, height: 64)
-                    Image(systemName: "newspaper.fill")
-                        .font(.system(size: 28))
-                        .foregroundStyle(.white)
+    var body: some View {
+        VStack(spacing: 0) {
+            // --- HEADER FIXO (ESTILO SITE) ---
+            ZStack(alignment: .bottom) {
+                TBTheme.highlightGradient
+                
+                HStack {
+                    Spacer()
+                    Image("tb-logo")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(height: 28)
+                    Spacer()
+                }
+                .padding(.bottom, 12)
+            }
+            .frame(height: 100)
+
+            // --- LISTA DE AJUSTES ---
+            List {
+                // Secção Sobre
+                Section {
+                    HStack(spacing: 16) {
+                        Image("AppLogo")
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 64, height: 64)
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .stroke(Color(.separator), lineWidth: 0.5)
+                            )
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Tecnoblog").font(.headline)
+                            Text("Tecnologia, inovação e cultura digital")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+                
+                // Secção Aparência
+                Section("Aparência") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Label("Tema do Aplicativo", systemImage: appTheme == 1 ? "sun.max.fill" : (appTheme == 2 ? "moon.fill" : "iphone"))
+                            .font(.subheadline)
+                        
+                        Picker("Tema", selection: $appTheme) {
+                            Text("Sistema").tag(0)
+                            Text("Claro").tag(1)
+                            Text("Escuro").tag(2)
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                    .padding(.vertical, 4)
                 }
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Tecnoblog")
-                        .font(.headline)
-                    Text("Tecnologia, inovação e cultura digital")
+                // Secção Notificações
+                Section("Notificações") {
+                    Toggle(isOn: $notificationsEnabled) {
+                        Label("Receber notificações", systemImage: "bell.badge")
+                    }
+                    .tint(TBTheme.accent)
+                }
+
+                // Secção Links
+                Section("Links") {
+                    LinkRow(title: "Site do Tecnoblog", icon: "globe", color: TBTheme.accent) {
+                        openURL(URL(string: "https://tecnoblog.net")!)
+                    }
+                    
+                    LinkRow(title: "Canal no YouTube", icon: "play.rectangle.fill", color: .red) {
+                        openURL(URL(string: "https://youtube.com/tecnoblog")!)
+                    }
+                }
+                
+                // Info do App (Lê do projeto Xcode)
+                Section {
+                    HStack {
+                        Text("Versão")
+                        Spacer()
+                        Text(appVersion).foregroundStyle(.secondary)
+                    }
+                    HStack {
+                        Text("Build")
+                        Spacer()
+                        Text(buildNumber).foregroundStyle(.secondary)
+                    }
+                } footer: {
+                    Text("Este aplicativo não é oficial do Tecnoblog.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .lineLimit(2)
                 }
             }
-            .padding(.vertical, 4)
+            .listStyle(.insetGrouped)
         }
-    }
-
-    private var appearanceSection: some View {
-        Section("Aparência") {
-            VStack(alignment: .leading, spacing: 12) {
-                Label("Tema do Aplicativo", systemImage: themeIcon)
-                    .font(.subheadline)
-                    .foregroundStyle(.primary)
-                
-                Picker("Tema", selection: $appTheme) {
-                    Text("Sistema").tag(0)
-                    Text("Claro").tag(1)
-                    Text("Escuro").tag(2)
-                }
-                .pickerStyle(.segmented)
-            }
-            .padding(.vertical, 4)
-        }
-    }
-
-    private var notificationsSection: some View {
-        Section("Notificações") {
-            Toggle(isOn: $notificationsEnabled) {
-                Label("Receber notificações", systemImage: "bell.badge")
-            }
-            .tint(TBTheme.accent)
-            .onChange(of: notificationsEnabled) { _, newValue in
-                if newValue { requestNotificationPermission() }
-            }
-
-            if notificationsEnabled {
-                Label("Você receberá alertas das principais notícias.", systemImage: "info.circle")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    private var linksSection: some View {
-        Section("Links") {
-            LinkRow(title: "Site do Tecnoblog", icon: "globe", color: TBTheme.accent) {
-                openURL(TBConfig.App.siteURL)
-            }
-
-            LinkRow(title: "Canal no YouTube", icon: "play.rectangle.fill", color: .red) {
-                openURL(TBConfig.App.youtube)
-            }
-
-            LinkRow(title: "Tecnocast no Spotify", icon: "music.note", color: .green) {
-                openURL(URL(string: "spotify:show:2p0v6nU7868Yf0D394CpA3") ?? TBConfig.App.siteURL)
-            }
-
-            LinkRow(title: "Política de Privacidade", icon: "hand.raised.fill", color: .blue) {
-                openURL(URL(string: "https://tecnoblog.net/privacidade")!)
-            }
-        }
-    }
-
-    private var appInfoSection: some View {
-        Section {
-            HStack {
-                Text("Versão")
-                Spacer()
-                Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")
-                    .foregroundStyle(.secondary)
-            }
-
-            HStack {
-                Text("Build")
-                Spacer()
-                Text(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1")
-                    .foregroundStyle(.secondary)
-            }
-        } footer: {
-            Text("Este aplicativo não é oficial do Tecnoblog. Desenvolvido de forma independente.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity)
-                .padding(.top, 8)
-        }
-    }
-
-    // MARK: - Helpers
-
-    private var themeIcon: String {
-        switch appTheme {
-        case 1: return "sun.max.fill"
-        case 2: return "moon.fill"
-        default: return "iphone"
-        }
-    }
-
-    private func requestNotificationPermission() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, _ in
-            DispatchQueue.main.async {
-                notificationsEnabled = granted
-            }
-        }
+        .ignoresSafeArea(edges: .top)
+        .toolbar(.hidden, for: .navigationBar)
+        .navigationBarHidden(true)
     }
 }
 
-// MARK: - Link Row Component
+// MARK: - Componente LinkRow (Certifica-te que isto está no fim do ficheiro)
 
 struct LinkRow: View {
     let title: String
@@ -184,8 +147,7 @@ struct LinkRow: View {
                         .fontWeight(.semibold)
                         .foregroundStyle(.white)
                 }
-                Text(title)
-                    .foregroundStyle(.primary)
+                Text(title).foregroundStyle(.primary)
                 Spacer()
                 Image(systemName: "arrow.up.right")
                     .font(.caption)

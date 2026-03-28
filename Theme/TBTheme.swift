@@ -9,44 +9,30 @@
 import SwiftUI
 
 enum TBTheme {
-    // ✅ Azul oficial do Tecnoblog (#0073E6)
-    static let blue = Color(hex: "#0073E6")
+    // Cores exatas extraídas do site oficial
+    static let siteBlueLight = Color(hex: "#22A9E1")
+    static let siteBlueDark  = Color(hex: "#004AB0")
+    static let blue          = Color(hex: "#0073E6")
 
-    // Alias principal — use sempre "accent" no código
     static var accent: Color { blue }
 
-    // Azul escuro para hover / pressed states
-    static let blueDark  = Color(hex: "#005BBF")
-
-    // Azul claro para badges e backgrounds sutis
-    static let blueLight = Color(hex: "#E8F3FF")
-
-    // Backgrounds
-    static let background          = Color(.systemBackground)
-    static let secondaryBackground = Color(.secondarySystemBackground)
-
-    // Text
-    static let primaryText   = Color(.label)
-    static let secondaryText = Color(.secondaryLabel)
-
-    // Gradiente para cards de destaque
+    // MARK: - Gradientes
+    
+    // Nome mantido como highlightGradient para não quebrar o PodcastHeaderView
     static var highlightGradient: LinearGradient {
         LinearGradient(
-            colors: [blueDark, blue],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
+            colors: [siteBlueLight, siteBlueDark],
+            startPoint: .leading,
+            endPoint: .trailing
         )
     }
 }
-
-// MARK: - Hex initializer para Color
 
 extension Color {
     init(hex: String) {
         let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
         var int: UInt64 = 0
         Scanner(string: hex).scanHexInt64(&int)
-
         let r, g, b: Double
         switch hex.count {
         case 6:
