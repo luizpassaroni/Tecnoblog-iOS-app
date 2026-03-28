@@ -7,13 +7,56 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		CBB2D7872F7433380096CF22 /* Tecnoblog.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tecnoblog.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CB2294482F7450FC0079208F /* Tecnoblog.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tecnoblog.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		CBE9EF492F77125C00B1081B /* Exceptions for "Tecnoblog" folder in "Tecnoblog" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = CBB2D7862F7433380096CF22 /* Tecnoblog */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		CBB2D7892F7433380096CF22 /* Tecnoblog */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				CBE9EF492F77125C00B1081B /* Exceptions for "Tecnoblog" folder in "Tecnoblog" target */,
+			);
 			path = Tecnoblog;
+			sourceTree = "<group>";
+		};
+		CBB2D7982F7433B80096CF22 /* Models */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Models;
+			sourceTree = "<group>";
+		};
+		CBB2D7A32F7434540096CF22 /* Config */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Config;
+			sourceTree = "<group>";
+		};
+		CBB2D7A82F74348E0096CF22 /* ViewModels */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		CBB2D7AD2F74353A0096CF22 /* Services */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Services;
+			sourceTree = "<group>";
+		};
+		CBB2D7BE2F7436130096CF22 /* Views */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Views;
+			sourceTree = "<group>";
+		};
+		CBB2D7D32F7436C20096CF22 /* Theme */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Theme;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -33,16 +76,14 @@
 			isa = PBXGroup;
 			children = (
 				CBB2D7892F7433380096CF22 /* Tecnoblog */,
-				CBB2D7882F7433380096CF22 /* Products */,
+				CBB2D7982F7433B80096CF22 /* Models */,
+				CBB2D7A32F7434540096CF22 /* Config */,
+				CBB2D7A82F74348E0096CF22 /* ViewModels */,
+				CBB2D7AD2F74353A0096CF22 /* Services */,
+				CBB2D7BE2F7436130096CF22 /* Views */,
+				CBB2D7D32F7436C20096CF22 /* Theme */,
+				CB2294482F7450FC0079208F /* Tecnoblog.app */,
 			);
-			sourceTree = "<group>";
-		};
-		CBB2D7882F7433380096CF22 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				CBB2D7872F7433380096CF22 /* Tecnoblog.app */,
-			);
-			name = Products;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -62,12 +103,18 @@
 			);
 			fileSystemSynchronizedGroups = (
 				CBB2D7892F7433380096CF22 /* Tecnoblog */,
+				CBB2D7982F7433B80096CF22 /* Models */,
+				CBB2D7A32F7434540096CF22 /* Config */,
+				CBB2D7A82F74348E0096CF22 /* ViewModels */,
+				CBB2D7AD2F74353A0096CF22 /* Services */,
+				CBB2D7BE2F7436130096CF22 /* Views */,
+				CBB2D7D32F7436C20096CF22 /* Theme */,
 			);
 			name = Tecnoblog;
 			packageProductDependencies = (
 			);
 			productName = Tecnoblog;
-			productReference = CBB2D7872F7433380096CF22 /* Tecnoblog.app */;
+			productReference = CB2294482F7450FC0079208F /* Tecnoblog.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -86,16 +133,16 @@
 				};
 			};
 			buildConfigurationList = CBB2D7822F7433380096CF22 /* Build configuration list for PBXProject "Tecnoblog" */;
-			developmentRegion = en;
+			developmentRegion = "pt-BR";
 			hasScannedForEncodings = 0;
 			knownRegions = (
-				en,
 				Base,
+				"pt-BR",
 			);
 			mainGroup = CBB2D77E2F7433380096CF22;
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
-			productRefGroup = CBB2D7882F7433380096CF22 /* Products */;
+			productRefGroup = CBB2D77E2F7433380096CF22;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -256,11 +303,15 @@
 				DEVELOPMENT_TEAM = 4249C2D869;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Tecnoblog/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Tecnoblog;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.news";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -288,11 +339,15 @@
 				DEVELOPMENT_TEAM = 4249C2D869;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Tecnoblog/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Tecnoblog;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.news";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
