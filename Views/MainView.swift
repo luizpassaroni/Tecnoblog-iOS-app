@@ -16,19 +16,18 @@ struct MainView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            
+
             // --- ABA NOTÍCIAS ---
+            // ✅ Sem NavigationStack aqui — o NewsView gerencia o próprio stack
             Tab("Notícias", systemImage: "newspaper", value: AppTab.news) {
-                NavigationStack {
-                    NewsView()
-                        .environment(newsViewModel)
-                        .environment(podcastViewModel)
-                }
-                .safeAreaInset(edge: .bottom) {
-                    if podcastViewModel.currentEpisode != nil {
-                        Color.clear.frame(height: 72)
+                NewsView()
+                    .environment(newsViewModel)
+                    .environment(podcastViewModel)
+                    .safeAreaInset(edge: .bottom) {
+                        if podcastViewModel.currentEpisode != nil {
+                            Color.clear.frame(height: 72)
+                        }
                     }
-                }
             }
 
             // --- ABA TECNOCAST ---
@@ -56,12 +55,11 @@ struct MainView: View {
             }
         }
         .tint(TBTheme.accent)
-        // Mini player global
         .overlay(alignment: .bottom) {
             if podcastViewModel.currentEpisode != nil {
                 MiniPlayerView()
                     .environment(podcastViewModel)
-                    .padding(.bottom, 49) // Altura aproximada da TabBar
+                    .padding(.bottom, 49)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }

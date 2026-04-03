@@ -13,7 +13,7 @@ struct SettingsView: View {
     @AppStorage("notificationsEnabled") private var notificationsEnabled = false
     @Environment(\.openURL) private var openURL
 
-    // MARK: - Propriedades Dinâmicas (Lê do Xcode automaticamente)
+    // MARK: - Propriedades Dinâmicas
     
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
@@ -43,33 +43,10 @@ struct SettingsView: View {
 
             // --- LISTA DE AJUSTES ---
             List {
-                // Secção Sobre
-                Section {
-                    HStack(spacing: 16) {
-                        Image("AppLogo")
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: 64, height: 64)
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .stroke(Color(.separator), lineWidth: 0.5)
-                            )
-                        
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Tecnoblog").font(.headline)
-                            Text("Tecnologia, inovação e cultura digital")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
-                
-                // Secção Aparência
+                // Seção Aparência
                 Section("Aparência") {
                     VStack(alignment: .leading, spacing: 12) {
-                        Label("Tema do Aplicativo", systemImage: appTheme == 1 ? "sun.max.fill" : (appTheme == 2 ? "moon.fill" : "iphone"))
+                        Label("Tema do Aplicativo", systemImage: themeIcon)
                             .font(.subheadline)
                         
                         Picker("Tema", selection: $appTheme) {
@@ -82,7 +59,7 @@ struct SettingsView: View {
                     .padding(.vertical, 4)
                 }
 
-                // Secção Notificações
+                // Seção Notificações
                 Section("Notificações") {
                     Toggle(isOn: $notificationsEnabled) {
                         Label("Receber notificações", systemImage: "bell.badge")
@@ -90,8 +67,8 @@ struct SettingsView: View {
                     .tint(TBTheme.accent)
                 }
 
-                // Secção Links
-                Section("Links") {
+                // Seção Links
+                Section("Links Rápidos") {
                     LinkRow(title: "Site do Tecnoblog", icon: "globe", color: TBTheme.accent) {
                         openURL(URL(string: "https://tecnoblog.net")!)
                     }
@@ -101,7 +78,7 @@ struct SettingsView: View {
                     }
                 }
                 
-                // Info do App (Lê do projeto Xcode)
+                // Info do App e Créditos
                 Section {
                     HStack {
                         Text("Versão")
@@ -114,9 +91,14 @@ struct SettingsView: View {
                         Text(buildNumber).foregroundStyle(.secondary)
                     }
                 } footer: {
-                    Text("Este aplicativo não é oficial do Tecnoblog.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    VStack(alignment: .center, spacing: 8) {
+                        Text("Tecnoblog: Tecnologia, inovação e cultura digital.")
+                        Text("Este aplicativo não é oficial e não possui vínculo com a equipe do Tecnoblog.")
+                            .font(.caption2)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .multilineTextAlignment(.center)
+                    .padding(.top, 10)
                 }
             }
             .listStyle(.insetGrouped)
@@ -125,9 +107,18 @@ struct SettingsView: View {
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarHidden(true)
     }
+    
+    // Helper para o ícone dinâmico do tema
+    private var themeIcon: String {
+        switch appTheme {
+        case 1: return "sun.max.fill"
+        case 2: return "moon.fill"
+        default: return "iphone"
+        }
+    }
 }
 
-// MARK: - Componente LinkRow (Certifica-te que isto está no fim do ficheiro)
+// MARK: - Componente LinkRow
 
 struct LinkRow: View {
     let title: String

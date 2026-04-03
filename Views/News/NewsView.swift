@@ -13,37 +13,60 @@ struct NewsView: View {
     @Environment(NewsViewModel.self) private var viewModel
     @Environment(\.modelContext) private var modelContext
 
+    // ✅ Store compartilhado — injetado no Environment para os filhos acessarem
+    @State private var navStore = NewsNavigationStore()
+
     var body: some View {
-        VStack(spacing: 0) {
-            // --- HEADER FIXO (LOGO CENTRALIZADO) ---
-            ZStack(alignment: .bottom) {
-                TBTheme.highlightGradient
-                
-                HStack {
-                    Spacer()
-                    Image("tb-logo")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(height: 28)
-                    Spacer()
+        NavigationStack(path: $navStore.path) {
+            VStack(spacing: 0) {
+                // --- HEADER FIXO ---
+                ZStack(alignment: .bottom) {
+                    TBTheme.highlightGradient
+
+                    HStack {
+                        Spacer()
+                        Image("tb-logo")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(height: 28)
+                        Spacer()
+                    }
+                    .padding(.bottom, 12)
                 }
-                .padding(.bottom, 12)
+                .frame(height: 100)
+
+                // --- LISTA ---
+                ZStack {
+                    if viewModel.articles.isEmpty && !viewModel.isLoading {
+                        ContentUnavailableView("Sem notícias", systemImage: "newspaper")
+                    } else {
+                        articleList
+                    }
+                }
             }
-            .frame(height: 100)
-            
-            // --- LISTA DE NOTÍCIAS ---
-            ZStack {
-                if viewModel.articles.isEmpty && !viewModel.isLoading {
-                    emptyView
-                } else {
-                    articleList
-                }
+            .ignoresSafeArea(edges: .top)
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationBarHidden(true)
+            // ✅ Destino para Article (lista)
+            .navigationDestination(for: Article.self) { article in
+                ArticleDetailView(article: article)
+            }
+            // ✅ Destino para URL (link clicado dentro de uma matéria)
+            .navigationDestination(for: URL.self) { url in
+                ArticleDetailView(article: Article(
+                    id: url.absoluteString,
+                    title: "",
+                    link: url.absoluteString,
+                    pubDate: Date(),
+                    thumbnailURL: "",
+                    excerpt: "",
+                    author: "",
+                    categories: []
+                ))
             }
         }
-        .ignoresSafeArea(edges: .top)
-        .toolbar(.hidden, for: .navigationBar)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarHidden(true)
+        // ✅ Injeta o store no Environment para ArticleDetailView acessar
+        .environment(\.newsNavigation, navStore)
         .task {
             viewModel.setup(context: modelContext)
             await viewModel.loadArticles()
@@ -55,26 +78,23 @@ struct NewsView: View {
         ScrollView {
             LazyVStack(spacing: 0) {
                 Color.clear.frame(height: 10)
-                
+
                 ForEach(viewModel.articles) { article in
-                    NavigationLink(destination: ArticleDetailView(article: article)) {
+                    NavigationLink(value: article) {
                         ArticleCardView(article: article, style: .cover) {
                             viewModel.toggleFavorite(article)
                         }
                     }
                     .buttonStyle(.plain)
+
                     Divider().padding(.leading, 16)
-                    // ✅ GATILHO DE SCROLL INFINITO:
-                    .onAppear {
-                        if article.id == viewModel.articles.last?.id {
-                            Task {
-                                await viewModel.loadArticles()
+                        .onAppear {
+                            if article.id == viewModel.articles.last?.id {
+                                Task { await viewModel.loadArticles() }
                             }
                         }
-                    }
                 }
 
-                // ✅ INDICADOR DE CARREGAMENTO NO RODAPÉ
                 if viewModel.isLoading && !viewModel.articles.isEmpty {
                     ProgressView()
                         .padding(.vertical, 32)
@@ -82,9 +102,5 @@ struct NewsView: View {
                 }
             }
         }
-    }
-
-    private var emptyView: some View {
-        ContentUnavailableView("Sem notícias", systemImage: "newspaper")
     }
 }
