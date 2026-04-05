@@ -41,20 +41,20 @@ final class NewsViewModel {
         errorMessage = nil
 
         do {
-            // Busca os itens brutos do serviço
+            // Busca os itens brutos do serviço de feed
             let items = try await feedService.fetchArticles(category: selectedCategory, page: currentPage)
             
-            // ✅ Se o servidor retornar VAZIO, realmente não há mais páginas
+            // Se o servidor retornar vazio, não há mais páginas para carregar
             if items.isEmpty {
                 hasMorePages = false
                 isLoading = false
                 return
             }
             
-            // Filtra o que não é podcast
+            // Filtra itens que não são podcasts para a lista de notícias
             let filteredItems = items.filter { !$0.isPodcast }
 
-            // ✅ Se a página atual só tinha podcasts, pula para a próxima automaticamente
+            // Se a página atual só contiver podcasts, tenta carregar a próxima automaticamente
             if filteredItems.isEmpty && hasMorePages {
                 currentPage += 1
                 isLoading = false
@@ -66,21 +66,31 @@ final class NewsViewModel {
 
             if let context = modelContext {
                 for item in filteredItems {
+                    // CORREÇÃO: Define um ID único consistente (GUID ou Link)
                     let id = item.guid.isEmpty ? item.link : item.guid
+                    
+                    // Verifica se o artigo já existe no SwiftData para evitar duplicados
                     let descriptor = FetchDescriptor<Article>(predicate: #Predicate { $0.id == id })
                     
                     if let existing = try? context.fetch(descriptor).first {
                         newArticles.append(existing)
                     } else {
+                        // Cria e insere um novo artigo se não for encontrado
                         let newArticle = Article(
-                            id: id, title: item.title, link: item.link,
-                            pubDate: item.pubDate, thumbnailURL: item.thumbnailURL,
-                            excerpt: item.excerpt, author: item.author, categories: item.categories
+                            id: id,
+                            title: item.title,
+                            link: item.link,
+                            pubDate: item.pubDate,
+                            thumbnailURL: item.thumbnailURL,
+                            excerpt: item.excerpt,
+                            author: item.author,
+                            categories: item.categories
                         )
                         context.insert(newArticle)
                         newArticles.append(newArticle)
                     }
                 }
+                // Salva as alterações no contexto do SwiftData
                 try? context.save()
             }
             
@@ -88,6 +98,7 @@ final class NewsViewModel {
                 if refresh {
                     self.articles = newArticles
                 } else {
+                    // Adiciona apenas artigos que ainda não estão na lista em memória
                     let existingIDs = Set(self.articles.map { $0.id })
                     let uniqueNew = newArticles.filter { !existingIDs.contains($0.id) }
                     self.articles.append(contentsOf: uniqueNew)
@@ -105,7 +116,7 @@ final class NewsViewModel {
 
     func toggleFavorite(_ article: Article) {
         article.isFavorite.toggle()
-        try? modelContext?.save()
+        try? modelContext?.save() // Persiste a mudança de favorito
     }
 
     func selectCategory(_ category: TBCategory) {
@@ -114,6 +125,6 @@ final class NewsViewModel {
         errorMessage = nil
         currentPage = 1
         hasMorePages = true
-        Task { await loadArticles(refresh: true) }
+        Task { await loadArticles(refresh: true) } // Recarrega ao mudar categoria
     }
 }

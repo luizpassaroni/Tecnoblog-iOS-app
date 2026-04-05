@@ -5,6 +5,7 @@
 //  Created by LUIZ PASSARONI on 25/03/26.
 //  Copyright © 2026 Globo Comunicação e Participações S.A.  All rights reserved.
 //
+
 import SwiftUI
 import SwiftData
 import AVFoundation
@@ -19,12 +20,11 @@ final class PodcastViewModel {
     var errorMessage: String?
     var channelArtworkURL = ""
 
-    // ✅ Quando o episódio muda, atualiza o Now Playing e dá play
+    // Atualiza o Now Playing e inicia o play quando o episódio muda
     var currentEpisode: PodcastEpisode? {
         didSet {
             if let episode = currentEpisode {
                 updateNowPlayingInfo()
-                // Se mudou o episódio e não está tocando, força o play
                 if !isPlaying {
                     play(episode)
                 }
@@ -40,9 +40,6 @@ final class PodcastViewModel {
     private var modelContext: ModelContext?
     private var player: AVPlayer?
     private var timeObserver: Any?
-    
-    // Cache para evitar recarregamento da arte na Central de Controle
-    private var currentArtwork: MPMediaItemArtwork?
 
     // MARK: - Setup
     func setup(context: ModelContext) {
@@ -91,24 +88,24 @@ final class PodcastViewModel {
 
     // MARK: - Playback Logic
     func play(_ episode: PodcastEpisode) {
-        // Se já é o episódio atual, apenas alterna o play/pause
-        if currentEpisode?.id == episode.id {
+        if currentEpisode?.id == episode.id && player != nil {
             togglePlayPause()
             return
         }
 
-        // Se for um novo episódio, limpa o player anterior
         stopPlayer()
         currentEpisode = episode
-        currentArtwork = nil
         
         guard let url = URL(string: episode.audioURL) else {
             errorMessage = "URL de áudio inválida."
             return
         }
 
+        setupAudioSession()
+
         let playerItem = AVPlayerItem(url: url)
         player = AVPlayer(playerItem: playerItem)
+        player?.automaticallyWaitsToMinimizeStalling = true
 
         if episode.playbackPosition > 0 {
             player?.seek(to: CMTime(seconds: episode.playbackPosition, preferredTimescale: 1))
@@ -116,11 +113,7 @@ final class PodcastViewModel {
 
         player?.play()
         isPlaying = true
-        errorMessage = nil
         
-        // Baixa a arte uma vez para a Central de Controle
-        // fetchArtworkForRemote(episode)
-
         let interval = CMTime(seconds: 0.5, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
         timeObserver = player?.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
             guard let self = self else { return }
@@ -128,14 +121,12 @@ final class PodcastViewModel {
             if let d = self.player?.currentItem?.duration.seconds, !d.isNaN, d > 0 {
                 self.duration = d
             }
-            // Salva a posição no banco para continuar depois
+            // Salva posição no SwiftData
             self.currentEpisode?.playbackPosition = self.currentTime
             self.updatePlaybackMetadata()
         }
 
         NotificationCenter.default.addObserver(self, selector: #selector(episodeDidFinish), name: .AVPlayerItemDidPlayToEndTime, object: playerItem)
-        
-        // Configura Now Playing no início da reprodução
         updateNowPlayingInfo()
     }
 
@@ -160,7 +151,6 @@ final class PodcastViewModel {
     func skipForward(seconds: Double = 30) { seek(to: currentTime + seconds) }
     func skipBackward(seconds: Double = 15) { seek(to: currentTime - seconds) }
 
-    // MARK: - Favorite Logic
     func toggleFavorite(_ episode: PodcastEpisode) {
         episode.isFavorite.toggle()
         try? modelContext?.save()
@@ -185,7 +175,17 @@ final class PodcastViewModel {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     }
 
-    private func updateNowPlayingInfo() {
+    private func setupAudioSession() {
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [])
+            try AVAudioSession.sharedInstance().setActive(true)
+        } catch {
+            print("Erro ao configurar AVAudioSession: \(error)")
+        }
+    }
+
+    // ✅ CORREÇÃO: Método restaurado
+    func updateNowPlayingInfo() {
         guard let episode = currentEpisode else { return }
 
         var info: [String: Any] = [
@@ -197,7 +197,6 @@ final class PodcastViewModel {
             MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0
         ]
 
-        // Se tiver arte do canal, usa como fallback
         if let artworkURL = URL(string: channelArtworkURL),
            let data = try? Data(contentsOf: artworkURL),
            let image = UIImage(data: data) {
@@ -207,7 +206,8 @@ final class PodcastViewModel {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
 
-    private func updatePlaybackMetadata() {
+    // ✅ CORREÇÃO: Método restaurado
+    func updatePlaybackMetadata() {
         var info = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
         info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = currentTime
         info[MPMediaItemPropertyPlaybackDuration] = duration
@@ -215,24 +215,9 @@ final class PodcastViewModel {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
 
-    private func setupAudioSession() {
-        do {
-            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [])
-            try AVAudioSession.sharedInstance().setActive(true)
-        } catch {
-            print("Erro ao configurar AVAudioSession: \(error)")
-        }
-    }
-
+    // ✅ CORREÇÃO: Método restaurado
     private func setupRemoteCommandCenter() {
         let center = MPRemoteCommandCenter.shared()
-        
-        // Remove targets antigos para evitar duplicidade
-        center.playCommand.removeTarget(nil)
-        center.pauseCommand.removeTarget(nil)
-        center.togglePlayPauseCommand.removeTarget(nil)
-        center.skipForwardCommand.removeTarget(nil)
-        center.skipBackwardCommand.removeTarget(nil)
         
         center.playCommand.addTarget { [weak self] _ in
             self?.togglePlayPause()
@@ -255,7 +240,6 @@ final class PodcastViewModel {
             return .success
         }
         
-        // Configura intervalos padrão de skip
         center.skipForwardCommand.preferredIntervals = [30]
         center.skipBackwardCommand.preferredIntervals = [15]
     }

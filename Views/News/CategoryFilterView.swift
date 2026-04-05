@@ -13,14 +13,24 @@ struct CategoryFilterView: View {
     let onSelect: (TBCategory) -> Void
 
     var body: some View {
-        // As categorias foram removidas conforme solicitado.
-        // Mantemos a View como EmptyView para não quebrar a compilação onde ela é utilizada.
-        EmptyView()
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                ForEach(TBCategory.allCases) { category in
+                    CategoryChip(
+                        title: category.rawValue,
+                        icon: category.sfSymbol,
+                        isSelected: selected == category,
+                        action: { onSelect(category) }
+                    )
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+        }
+        .background(Color(.systemBackground))
     }
 }
 
-// Mantemos a struct auxiliar caso decida voltar com a feature no futuro,
-// mas ela não é renderizada.
 struct CategoryChip: View {
     let title: String
     let icon: String
@@ -41,6 +51,10 @@ struct CategoryChip: View {
             .background(isSelected ? TBTheme.accent : Color(.secondarySystemBackground))
             .foregroundStyle(isSelected ? .white : .primary)
             .clipShape(Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(Color.black.opacity(isSelected ? 0 : 0.05), lineWidth: 1)
+            )
         }
         .buttonStyle(.plain)
         .animation(.easeInOut(duration: 0.2), value: isSelected)

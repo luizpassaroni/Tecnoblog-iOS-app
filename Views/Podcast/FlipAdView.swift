@@ -7,7 +7,7 @@
 //
 
 import SwiftUI
-internal import Combine
+import Combine // Corrigido: import padrão
 
 struct FlipAdView: View {
     let episode: PodcastEpisode
@@ -16,17 +16,14 @@ struct FlipAdView: View {
     @State private var adFailed = false
     @AppStorage("isAdFree") private var isAdFree = false
     
-    // Timer para alternar a cada 30 segundos
     let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
     var body: some View {
         ZStack {
-            // LADO A: Capa do Podcast
             artworkImage
                 .rotation3DEffect(.degrees(showAd ? 180 : 0), axis: (x: 0, y: 1, z: 0))
                 .opacity(showAd ? 0 : 1)
 
-            // LADO B: Anúncio (Só carrega se não for PRO)
             if !isAdFree {
                 ZStack {
                     RoundedRectangle(cornerRadius: 20)
@@ -40,8 +37,8 @@ struct FlipAdView: View {
                         .padding()
                     } else {
                         AdBannerView(adFailed: $adFailed)
-                            .frame(width: 320, height: 50) // O SDK ajusta o conteúdo
-                            .scaleEffect(0.8) // Ajuste fino para caber no quadrado
+                            .frame(width: 320, height: 50)
+                            .scaleEffect(0.8)
                     }
                 }
                 .frame(width: 240, height: 240)
@@ -50,13 +47,11 @@ struct FlipAdView: View {
             }
         }
         .onReceive(timer) { _ in
-            // Só vira para o anúncio se não for Pro e estiver tocando
             if !isAdFree && isPlaying {
                 withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
                     showAd.toggle()
                 }
                 
-                // Se virou para o Ad, volta para a capa após 10 segundos
                 if showAd {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
                         withAnimation(.spring()) { showAd = false }

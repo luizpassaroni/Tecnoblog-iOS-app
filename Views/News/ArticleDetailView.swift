@@ -1,3 +1,11 @@
+//
+//  ArticleDetailView.swift
+//  Tecnoblog
+//
+//  Created by LUIZ PASSARONI on 25/03/26.
+//  Copyright © 2026 Globo Comunicação e Participações S.A.  All rights reserved.
+//
+
 import SwiftUI
 import WebKit
 import SafariServices
@@ -17,44 +25,42 @@ struct ArticleDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // --- HEADER ---
-            // Padronizado em 100px para alinhar com as outras telas
+            // --- HEADER CORRIGIDO ---
             ZStack(alignment: .bottom) {
                 TBTheme.highlightGradient
                     .ignoresSafeArea(edges: .top)
 
+                // Camada do Logo (Centro Absoluto para alinhar com NewsView)
+                HStack {
+                    Spacer()
+                    Image("tb-logo")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(height: 28)
+                        .offset(y: -12) // Alinhamento vertical padronizado
+                    Spacer()
+                }
+
+                // Camada de Botões
                 HStack(alignment: .center) {
-                    // Botão Voltar
                     Button { dismiss() } label: {
                         Image(systemName: "chevron.left")
                             .font(.system(size: 18, weight: .bold))
                     }
                     .buttonWithGlassEffect()
-                    .id("back-button-\(colorScheme)")
                     .frame(width: 44, alignment: .leading)
 
                     Spacer()
 
-                    // ✅ LOGO: Tamanho 28px e ajuste vertical para alinhar com a MainView
-                    Image("tb-logo")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(height: 28)
-                        .offset(y: -2)
-
-                    Spacer()
-
-                    // Botão Compartilhar
                     Button { showShareSheet = true } label: {
                         Image(systemName: "square.and.arrow.up")
                             .font(.system(size: 18, weight: .bold))
                     }
                     .buttonWithGlassEffect()
-                    .id("share-button-\(colorScheme)")
                     .frame(width: 44, alignment: .trailing)
                 }
                 .padding(.horizontal, 16)
-                .padding(.bottom, 12)
+                .padding(.bottom, 4)
             }
             .frame(height: 100)
 
@@ -141,19 +147,13 @@ struct ArticleWebView: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> WKWebView {
-        let zoomScript = "var meta = document.createElement('meta'); meta.name = 'viewport'; meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no'; document.getElementsByTagName('head')[0].appendChild(meta);"
-        let userScript = WKUserScript(source: zoomScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
         let config = WKWebViewConfiguration()
-        config.userContentController.addUserScript(userScript)
-
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
         webView.isOpaque = false
         webView.backgroundColor = .clear
         webView.scrollView.backgroundColor = .clear
         webView.alpha = 0
-
-        context.coordinator.targetURLString = article.link
 
         if let url = URL(string: article.link) {
             webView.load(URLRequest(url: url))
@@ -171,6 +171,8 @@ struct ArticleWebView: UIViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
+
+    // MARK: - Injected Scripts
 
     func buildScript() -> String {
         let fallbackDate = article.pubDate.formatted(date: .long, time: .omitted)
@@ -201,7 +203,6 @@ struct ArticleWebView: UIViewRepresentable {
             hdr.innerHTML = '<div style="padding: 0 16px;"><span style="background:\(accentColor);display:inline-block;color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;margin-bottom:10px;">' + extractedCategory + '</span><h1 style="font-size:22px;font-weight:700;line-height:1.3;margin:0 0 8px 0;">' + extractedTitle + '</h1><div style="font-size:13px;color:\(textSecColor);">Por ' + extractedAuthor + ' • ' + extractedDate + '</div><div style="height:1px;background:\(borderColor);margin:12px 0 20px 0;"></div></div>';
             document.body.insertBefore(hdr, document.body.firstChild);
 
-            // ✅ TORNAR IMAGENS CLICÁVEIS
             document.querySelectorAll('img').forEach(function(img) {
                 if (img.src && !img.closest('a')) {
                     var link = document.createElement('a');
@@ -234,7 +235,6 @@ struct ArticleWebView: UIViewRepresentable {
 
     final class Coordinator: NSObject, WKNavigationDelegate {
         var parent: ArticleWebView
-        var targetURLString: String = ""
         var lastThemeScript: String = ""
         init(parent: ArticleWebView) { self.parent = parent }
 
@@ -267,32 +267,17 @@ struct ArticleWebView: UIViewRepresentable {
     }
 }
 
-// MARK: - MacMagazine UI Extensions
+// MARK: - Extensions
 
 extension View {
     func buttonWithGlassEffect() -> some View {
-        modifier(ButtonWithGlassEffect())
-    }
-}
-
-private struct ButtonWithGlassEffect: ViewModifier {
-    func body(content: Content) -> some View {
-        content
-            .buttonStyle(.plain)
+        self.buttonStyle(.plain)
             .frame(width: 44, height: 44)
             .contentShape(Circle())
             .foregroundStyle(.primary)
-            .background {
-                if #available(iOS 26.0, *) {
-                    Circle().glassEffect(.regular.interactive(), in: .circle)
-                } else {
-                    Circle().fill(.ultraThinMaterial)
-                }
-            }
+            .background(.ultraThinMaterial, in: Circle())
     }
 }
-
-// MARK: - General Helpers
 
 private extension UIColor {
     func toHex(for style: UIUserInterfaceStyle) -> String {
