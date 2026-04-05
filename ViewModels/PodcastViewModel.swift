@@ -5,7 +5,6 @@
 //  Created by LUIZ PASSARONI on 25/03/26.
 //  Copyright © 2026 Globo Comunicação e Participações S.A.  All rights reserved.
 //
-
 import SwiftUI
 import SwiftData
 import AVFoundation
@@ -20,7 +19,19 @@ final class PodcastViewModel {
     var errorMessage: String?
     var channelArtworkURL = ""
 
-    var currentEpisode: PodcastEpisode?
+    // ✅ Quando o episódio muda, atualiza o Now Playing e dá play
+    var currentEpisode: PodcastEpisode? {
+        didSet {
+            if let episode = currentEpisode {
+                updateNowPlayingInfo()
+                // Se mudou o episódio e não está tocando, força o play
+                if !isPlaying {
+                    play(episode)
+                }
+            }
+        }
+    }
+    
     var isPlaying = false
     var currentTime: Double = 0
     var duration: Double = 0
@@ -29,6 +40,8 @@ final class PodcastViewModel {
     private var modelContext: ModelContext?
     private var player: AVPlayer?
     private var timeObserver: Any?
+    
+    // Cache para evitar recarregamento da arte na Central de Controle
     private var currentArtwork: MPMediaItemArtwork?
 
     // MARK: - Setup
@@ -89,7 +102,10 @@ final class PodcastViewModel {
         currentEpisode = episode
         currentArtwork = nil
         
-        guard let url = URL(string: episode.audioURL) else { return }
+        guard let url = URL(string: episode.audioURL) else {
+            errorMessage = "URL de áudio inválida."
+            return
+        }
 
         let playerItem = AVPlayerItem(url: url)
         player = AVPlayer(playerItem: playerItem)
@@ -100,8 +116,10 @@ final class PodcastViewModel {
 
         player?.play()
         isPlaying = true
+        errorMessage = nil
         
-        fetchArtworkForRemote(episode)
+        // Baixa a arte uma vez para a Central de Controle
+        // fetchArtworkForRemote(episode)
 
         let interval = CMTime(seconds: 0.5, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
         timeObserver = player?.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
@@ -116,6 +134,8 @@ final class PodcastViewModel {
         }
 
         NotificationCenter.default.addObserver(self, selector: #selector(episodeDidFinish), name: .AVPlayerItemDidPlayToEndTime, object: playerItem)
+        
+        // Configura Now Playing no início da reprodução
         updateNowPlayingInfo()
     }
 
@@ -140,11 +160,13 @@ final class PodcastViewModel {
     func skipForward(seconds: Double = 30) { seek(to: currentTime + seconds) }
     func skipBackward(seconds: Double = 15) { seek(to: currentTime - seconds) }
 
+    // MARK: - Favorite Logic
     func toggleFavorite(_ episode: PodcastEpisode) {
         episode.isFavorite.toggle()
         try? modelContext?.save()
     }
 
+    // MARK: - Private Helpers & Remote Center
     private func stopPlayer() {
         if let observer = timeObserver {
             player?.removeTimeObserver(observer)
@@ -163,19 +185,9 @@ final class PodcastViewModel {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     }
 
-    private func fetchArtworkForRemote(_ episode: PodcastEpisode) {
-        guard let url = URL(string: episode.artworkURL) else { return }
-        Task {
-            if let (data, _) = try? await URLSession.shared.data(from: url),
-               let image = UIImage(data: data) {
-                self.currentArtwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
-                self.updateNowPlayingInfo()
-            }
-        }
-    }
-
     private func updateNowPlayingInfo() {
         guard let episode = currentEpisode else { return }
+
         var info: [String: Any] = [
             MPMediaItemPropertyTitle: episode.title,
             MPMediaItemPropertyArtist: "Tecnocast",
@@ -184,7 +196,14 @@ final class PodcastViewModel {
             MPMediaItemPropertyPlaybackDuration: duration,
             MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0
         ]
-        if let artwork = currentArtwork { info[MPMediaItemPropertyArtwork] = artwork }
+
+        // Se tiver arte do canal, usa como fallback
+        if let artworkURL = URL(string: channelArtworkURL),
+           let data = try? Data(contentsOf: artworkURL),
+           let image = UIImage(data: data) {
+            info[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+        }
+
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
 
@@ -192,19 +211,52 @@ final class PodcastViewModel {
         var info = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
         info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = currentTime
         info[MPMediaItemPropertyPlaybackDuration] = duration
+        info[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? 1.0 : 0.0
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
 
     private func setupAudioSession() {
-        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
-        try? AVAudioSession.sharedInstance().setActive(true)
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [])
+            try AVAudioSession.sharedInstance().setActive(true)
+        } catch {
+            print("Erro ao configurar AVAudioSession: \(error)")
+        }
     }
 
     private func setupRemoteCommandCenter() {
         let center = MPRemoteCommandCenter.shared()
-        center.playCommand.addTarget { [weak self] _ in self?.togglePlayPause(); return .success }
-        center.pauseCommand.addTarget { [weak self] _ in self?.togglePlayPause(); return .success }
-        center.skipForwardCommand.addTarget { [weak self] _ in self?.skipForward(); return .success }
-        center.skipBackwardCommand.addTarget { [weak self] _ in self?.skipBackward(); return .success }
+        
+        // Remove targets antigos para evitar duplicidade
+        center.playCommand.removeTarget(nil)
+        center.pauseCommand.removeTarget(nil)
+        center.togglePlayPauseCommand.removeTarget(nil)
+        center.skipForwardCommand.removeTarget(nil)
+        center.skipBackwardCommand.removeTarget(nil)
+        
+        center.playCommand.addTarget { [weak self] _ in
+            self?.togglePlayPause()
+            return .success
+        }
+        center.pauseCommand.addTarget { [weak self] _ in
+            self?.togglePlayPause()
+            return .success
+        }
+        center.togglePlayPauseCommand.addTarget { [weak self] _ in
+            self?.togglePlayPause()
+            return .success
+        }
+        center.skipForwardCommand.addTarget { [weak self] _ in
+            self?.skipForward()
+            return .success
+        }
+        center.skipBackwardCommand.addTarget { [weak self] _ in
+            self?.skipBackward()
+            return .success
+        }
+        
+        // Configura intervalos padrão de skip
+        center.skipForwardCommand.preferredIntervals = [30]
+        center.skipBackwardCommand.preferredIntervals = [15]
     }
 }

@@ -13,7 +13,10 @@ struct PodcastPlayerView: View {
     @Environment(PodcastViewModel.self) private var viewModel
     @Environment(\.dismiss) private var dismiss
     
+    // ✅ Verifica se o usuário é Pro para remover o anúncio
     @AppStorage("isAdFree") private var isAdFree = false
+    
+    // ✅ Estado para falha do anúncio (AdGuard/Sem Internet)
     @State private var adFailed = false
 
     private var isCurrentEpisode: Bool {
@@ -28,13 +31,28 @@ struct PodcastPlayerView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 32) {
-                    artworkAndAdSection
+                VStack(spacing: 24) {
+                    // 1. Capa (Tamanho total, sem blur)
+                    artworkSection
+                    
+                    // 2. Informações do Episódio (Título e Data)
                     episodeInfoSection
+                    
+                    // ✅ 3. Anúncio ABAIXO da capa (Se não for Pro)
+                    if !isAdFree {
+                        adSection
+                    }
+                    
+                    // 4. Barra de Progresso
                     progressSection
+                    
+                    // 5. Controles Principais (Play/Pause/Skip)
                     mainPlaybackControls
+                    
+                    // 6. Ações Secundárias (Favorito/Share)
                     secondaryActionControls
                     
+                    // ✅ 7. Descrição/Resumo (Voltou)
                     if !episode.summary.isEmpty {
                         descriptionSection
                     }
@@ -46,120 +64,196 @@ struct PodcastPlayerView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Fechar") { dismiss() }
+                        .fontWeight(.medium)
+                }
+            }
+            // ✅ Tenta dar o play assim que a view aparece
+            .onAppear {
+                if !isCurrentEpisode {
+                    viewModel.play(episode)
                 }
             }
         }
     }
 
-    // MARK: - Artwork Section
-    private var artworkAndAdSection: some View {
-        ZStack {
-            AsyncImage(url: URL(string: episode.artworkURL)) { phase in
-                if let image = phase.image {
-                    image.resizable().aspectRatio(contentMode: .fill)
-                } else {
-                    placeholderArtwork
-                }
-            }
-            .frame(width: 240, height: 240)
-            .clipShape(RoundedRectangle(cornerRadius: 24))
-            .scaleEffect(!isAdFree ? 0.9 : 1.0)
-            .blur(radius: !isAdFree ? 12 : 0)
-            .opacity(!isAdFree ? 0.4 : 1.0)
-            .shadow(color: TBTheme.accent.opacity(0.3), radius: 20, y: 10)
-
-            if !isAdFree {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 24)
-                        .fill(Color(.secondarySystemBackground).opacity(0.6))
-                        .background(.ultraThinMaterial)
-                    
-                    if adFailed {
-                        VStack(spacing: 8) {
-                            Image(systemName: "heart.fill").foregroundStyle(TBTheme.accent)
-                            Text("Apoie o Tecnoblog").font(.caption).bold()
-                        }
-                    } else {
-                        AdBannerView(adFailed: $adFailed)
-                            .frame(width: 320, height: 50)
-                            .scaleEffect(0.75)
-                    }
-                }
-                .frame(width: 240, height: 240)
+    // MARK: - Seção da Capa (Artwork)
+    private var artworkSection: some View {
+        AsyncImage(url: URL(string: episode.artworkURL)) { phase in
+            if let image = phase.image {
+                image.resizable().aspectRatio(contentMode: .fill)
+            } else {
+                placeholderArtwork
             }
         }
+        .id(episode.id)
+        .frame(width: 240, height: 240)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .shadow(color: TBTheme.accent.opacity(0.2), radius: 15, y: 8)
+        // Efeito de pulsação suave quando o áudio está tocando
         .scaleEffect(isCurrentEpisode && viewModel.isPlaying ? 1.0 : 0.95)
-        .animation(.spring(), value: viewModel.isPlaying)
+        .animation(.spring(response: 0.4, dampingFraction: 0.6), value: viewModel.isPlaying)
     }
 
     private var placeholderArtwork: some View {
-        RoundedRectangle(cornerRadius: 24).fill(TBTheme.highlightGradient)
-    }
-
-    private var episodeInfoSection: some View {
-        VStack(spacing: 8) {
-            Text(episode.title).font(.title3).bold().multilineTextAlignment(.center)
-            Text("Tecnocast").font(.subheadline).foregroundStyle(.secondary)
+        ZStack {
+            RoundedRectangle(cornerRadius: 20).fill(TBTheme.highlightGradient)
+            Image(systemName: "mic.fill").font(.system(size: 64)).foregroundStyle(.white)
         }
     }
 
+    // MARK: - Informações do Episódio
+    private var episodeInfoSection: some View {
+        VStack(spacing: 8) {
+            Text(episode.title)
+                .font(.headline)
+                .fontWeight(.bold)
+                .multilineTextAlignment(.center)
+                .lineLimit(3)
+
+            Text("Tecnocast · \(episode.pubDate.formatted(date: .abbreviated, time: .omitted))")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+    }
+    
+    // MARK: - ✅ Seção de Anúncio Dedicada (Abaixo da Info)
+    private var adSection: some View {
+        VStack(spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color(.secondarySystemBackground))
+                
+                if adFailed {
+                    VStack(spacing: 8) {
+                        Image(systemName: "heart.fill")
+                            .foregroundStyle(TBTheme.accent)
+                        Text("Apoie o Tecnoblog")
+                            .font(.caption)
+                            .fontWeight(.bold)
+                    }
+                    .padding()
+                } else {
+                    // O Banner do AdMob
+                    AdBannerView(adFailed: $adFailed)
+                        .frame(width: 320, height: 50)
+                        .scaleEffect(0.9) // Ajuste leve para caber no layout
+                }
+            }
+            .frame(height: adFailed ? 80 : 60)
+            
+            // Tag de Publicidade (Ética/Requisito Store)
+            Text("PUBLICIDADE")
+                .font(.system(size: 8, weight: .black))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 8)
+        .transition(.opacity.combined(with: .scale))
+    }
+
+    // MARK: - Seção de Progresso
     private var progressSection: some View {
         VStack(spacing: 8) {
             Slider(value: Binding(
                 get: { progress },
-                set: { viewModel.seek(to: $0 * viewModel.duration) }
-            ))
+                set: { if isCurrentEpisode { viewModel.seek(to: $0 * viewModel.duration) } }
+            ), in: 0...1)
             .tint(TBTheme.accent)
-            
+
             HStack {
                 Text(formatTime(isCurrentEpisode ? viewModel.currentTime : episode.playbackPosition))
                 Spacer()
                 Text(formatTime(isCurrentEpisode ? viewModel.duration : 0))
-            }.font(.caption).monospacedDigit()
+            }
+            .font(.caption).monospacedDigit().foregroundStyle(.secondary)
         }
     }
 
+    // MARK: - Controles de Reprodução
     private var mainPlaybackControls: some View {
         HStack(spacing: 48) {
-            Button { viewModel.skipBackward() } label: { Image(systemName: "gobackward.15") }
-            
-            // ✅ CORREÇÃO: Chama viewModel.play()
+            Button { viewModel.skipBackward(seconds: 15) } label: {
+                Image(systemName: "gobackward.15").font(.system(size: 28))
+            }
+            .disabled(!isCurrentEpisode)
+
+            // Botão Central de Play/Pause
             Button {
+                // Chama a lógica centralizada de play do ViewModel
                 viewModel.play(episode)
             } label: {
                 ZStack {
-                    Circle().fill(TBTheme.accent).frame(width: 72, height: 72)
+                    Circle()
+                        .fill(TBTheme.accent)
+                        .frame(width: 72, height: 72)
+                        .shadow(color: TBTheme.accent.opacity(0.3), radius: 12, y: 6)
+                    
                     Image(systemName: isCurrentEpisode && viewModel.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.title).foregroundStyle(.white)
+                        .font(.system(size: 30, weight: .bold))
+                        .foregroundStyle(.white)
+                        .offset(x: isCurrentEpisode && viewModel.isPlaying ? 0 : 2)
                 }
             }
-            
-            Button { viewModel.skipForward() } label: { Image(systemName: "goforward.30") }
+
+            Button { viewModel.skipForward(seconds: 30) } label: {
+                Image(systemName: "goforward.30").font(.system(size: 28))
+            }
+            .disabled(!isCurrentEpisode)
         }
-        .font(.title2).buttonStyle(.plain)
+        .foregroundStyle(.primary)
+        .buttonStyle(.plain)
     }
 
+    // MARK: - Controles Secundários
     private var secondaryActionControls: some View {
         HStack(spacing: 40) {
             Button { viewModel.toggleFavorite(episode) } label: {
                 Image(systemName: episode.isFavorite ? "bookmark.fill" : "bookmark")
                     .foregroundStyle(episode.isFavorite ? TBTheme.accent : .secondary)
             }
-            // Adicione ShareLink se desejar
-        }.font(.title3)
+
+            ShareLink(item: URL(string: episode.audioURL) ?? URL(string: "https://tecnoblog.net")!) {
+                Image(systemName: "square.and.arrow.up").foregroundStyle(.secondary)
+            }
+            
+            Button {
+                if let url = URL(string: episode.audioURL) {
+                    UIApplication.shared.open(url)
+                }
+            } label: {
+                Image(systemName: "safari").foregroundStyle(.secondary)
+            }
+        }
+        .font(.title3)
+        .buttonStyle(.plain)
     }
 
+    // MARK: - ✅ Seção de Descrição (Voltou)
     private var descriptionSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Sobre este episódio").font(.headline)
-            Text(episode.summary).font(.subheadline).foregroundStyle(.secondary)
+            Text(episode.summary)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .lineSpacing(4)
         }
-        .padding().background(Color(.secondarySystemBackground)).cornerRadius(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(Color(.secondarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
+    // Helper para formatar tempo (ex: 01:20:30)
     private func formatTime(_ seconds: Double) -> String {
-        guard !seconds.isNaN, seconds > 0 else { return "0:00" }
-        let m = Int(seconds) / 60, s = Int(seconds) % 60
-        return String(format: "%d:%02d", m, s)
+        guard !seconds.isNaN, !seconds.isInfinite, seconds > 0 else { return "0:00" }
+        let total = Int(seconds)
+        let h = total / 3600
+        let m = (total % 3600) / 60
+        let s = total % 60
+        
+        if h > 0 {
+            return String(format: "%d:%02d:%02d", h, m, s)
+        } else {
+            return String(format: "%d:%02d", m, s)
+        }
     }
 }

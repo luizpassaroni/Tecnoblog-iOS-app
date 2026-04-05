@@ -20,7 +20,8 @@ struct AdBannerView: UIViewRepresentable {
         let banner = BannerView(adSize: AdSizeBanner)
         
         // ID de Teste (Troque pelo seu real ca-app-pub-xxx/yyy depois)
-        banner.adUnitID = "ca-app-pub-3940256099942544/2934735716"
+        // Em AdBannerView.swift
+        banner.adUnitID = "ca-app-pub-3940256099942544/2934735716" // ID de teste padrão
         banner.backgroundColor = .clear
         
         // ✅ Definimos o delegado para monitorar o carregamento
