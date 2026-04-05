@@ -18,6 +18,7 @@ struct ArticleDetailView: View {
     var body: some View {
         VStack(spacing: 0) {
             // --- HEADER ---
+            // Padronizado em 100px para alinhar com as outras telas
             ZStack(alignment: .bottom) {
                 TBTheme.highlightGradient
                     .ignoresSafeArea(edges: .top)
@@ -29,16 +30,17 @@ struct ArticleDetailView: View {
                             .font(.system(size: 18, weight: .bold))
                     }
                     .buttonWithGlassEffect()
-                    // A id força a atualização visual completa na troca de tema
                     .id("back-button-\(colorScheme)")
-                    .frame(width: 44, alignment: SwiftUI.Alignment.leading)
+                    .frame(width: 44, alignment: .leading)
 
                     Spacer()
 
+                    // ✅ LOGO: Tamanho 28px e ajuste vertical para alinhar com a MainView
                     Image("tb-logo")
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(height: 26)
+                        .frame(height: 28)
+                        .offset(y: -2)
 
                     Spacer()
 
@@ -48,9 +50,8 @@ struct ArticleDetailView: View {
                             .font(.system(size: 18, weight: .bold))
                     }
                     .buttonWithGlassEffect()
-                    // A id evita que o ícone "bugue" ou suma na troca de tema
                     .id("share-button-\(colorScheme)")
-                    .frame(width: 44, alignment: SwiftUI.Alignment.trailing)
+                    .frame(width: 44, alignment: .trailing)
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 12)
@@ -183,10 +184,8 @@ struct ArticleWebView: UIViewRepresentable {
             var extractedCategory = '\(fallbackCategory)';
             var extractedAuthor = '\(fallbackAuthor)';
             var extractedDate = '\(fallbackDate)';
-            var tEl = document.querySelector('h1');
-            if (tEl) extractedTitle = tEl.innerText.trim();
-
-            ['header', 'footer', 'aside', '.sidebar', '.comments-area', '.tb-related'].forEach(function(sel) {
+            
+            ['header', 'footer', 'aside', '.sidebar', '.comments-area', '.tb-related', 'nav.tags', '.tags'].forEach(function(sel) {
                 document.querySelectorAll(sel).forEach(function(el) { el.remove(); });
             });
 
@@ -201,6 +200,17 @@ struct ArticleWebView: UIViewRepresentable {
             hdr.id = 'tb-native-header';
             hdr.innerHTML = '<div style="padding: 0 16px;"><span style="background:\(accentColor);display:inline-block;color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;margin-bottom:10px;">' + extractedCategory + '</span><h1 style="font-size:22px;font-weight:700;line-height:1.3;margin:0 0 8px 0;">' + extractedTitle + '</h1><div style="font-size:13px;color:\(textSecColor);">Por ' + extractedAuthor + ' • ' + extractedDate + '</div><div style="height:1px;background:\(borderColor);margin:12px 0 20px 0;"></div></div>';
             document.body.insertBefore(hdr, document.body.firstChild);
+
+            // ✅ TORNAR IMAGENS CLICÁVEIS
+            document.querySelectorAll('img').forEach(function(img) {
+                if (img.src && !img.closest('a')) {
+                    var link = document.createElement('a');
+                    link.href = img.src;
+                    img.parentNode.insertBefore(link, img);
+                    link.appendChild(img);
+                }
+            });
+
             \(buildThemeOnlyScript())
         })();
         """
@@ -213,7 +223,7 @@ struct ArticleWebView: UIViewRepresentable {
             if (old) old.parentNode.removeChild(old);
             var css = 'html, body { background: \(bg) !important; } body { margin: 0 !important; padding: 0 !important; color: \(textColor) !important; font-family: -apple-system, sans-serif !important; font-size: \(fontSizePx)px !important; line-height: 1.75 !important; }';
             css += 'a { color: \(linkColor) !important; text-decoration: none !important; } .entry-content, article { padding: 0 16px 80px 16px !important; }';
-            css += 'img { max-width: 100% !important; height: auto !important; border-radius: 8px !important; margin: 12px 0 !important; }';
+            css += 'img { max-width: 100% !important; height: auto !important; border-radius: 8px !important; margin: 12px 0 !important; cursor: pointer; }';
             var s = document.createElement('style');
             s.id = 'tb-theme';
             s.innerHTML = css;
@@ -234,7 +244,8 @@ struct ArticleWebView: UIViewRepresentable {
             }
             decisionHandler(.cancel)
             DispatchQueue.main.async {
-                if url.host?.contains("tecnoblog.net") == true {
+                let isImage = ["jpg", "jpeg", "png", "webp"].contains(url.pathExtension.lowercased())
+                if url.host?.contains("tecnoblog.net") == true && !isImage {
                     self.parent.onTecnoblogLink(url)
                 } else {
                     let safari = SFSafariViewController(url: url)
@@ -270,14 +281,11 @@ private struct ButtonWithGlassEffect: ViewModifier {
             .buttonStyle(.plain)
             .frame(width: 44, height: 44)
             .contentShape(Circle())
-            // Forçamos o foregroundStyle para garantir que o ícone mude de cor
             .foregroundStyle(.primary)
             .background {
                 if #available(iOS 26.0, *) {
-                    // Placeholder para versão futura do MacMagazine
                     Circle().glassEffect(.regular.interactive(), in: .circle)
                 } else {
-                    // Fallback visual idêntico ao efeito "Liquid Glass"
                     Circle().fill(.ultraThinMaterial)
                 }
             }

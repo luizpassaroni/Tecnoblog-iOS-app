@@ -29,8 +29,6 @@ final class PodcastViewModel {
     private var modelContext: ModelContext?
     private var player: AVPlayer?
     private var timeObserver: Any?
-    
-    // Cache para evitar recarregamento da arte na Central de Controle (Lock Screen)
     private var currentArtwork: MPMediaItemArtwork?
 
     // MARK: - Setup
@@ -80,16 +78,18 @@ final class PodcastViewModel {
 
     // MARK: - Playback Logic
     func play(_ episode: PodcastEpisode) {
-        guard let url = URL(string: episode.audioURL) else { return }
-
+        // Se já é o episódio atual, apenas alterna o play/pause
         if currentEpisode?.id == episode.id {
             togglePlayPause()
             return
         }
 
+        // Se for um novo episódio, limpa o player anterior
         stopPlayer()
         currentEpisode = episode
         currentArtwork = nil
+        
+        guard let url = URL(string: episode.audioURL) else { return }
 
         let playerItem = AVPlayerItem(url: url)
         player = AVPlayer(playerItem: playerItem)
@@ -101,7 +101,6 @@ final class PodcastViewModel {
         player?.play()
         isPlaying = true
         
-        // Baixa a arte uma vez para a Central de Controle
         fetchArtworkForRemote(episode)
 
         let interval = CMTime(seconds: 0.5, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
@@ -111,18 +110,22 @@ final class PodcastViewModel {
             if let d = self.player?.currentItem?.duration.seconds, !d.isNaN, d > 0 {
                 self.duration = d
             }
-            // Atualiza apenas os metadados de tempo
+            // Salva a posição no banco para continuar depois
+            self.currentEpisode?.playbackPosition = self.currentTime
             self.updatePlaybackMetadata()
         }
 
         NotificationCenter.default.addObserver(self, selector: #selector(episodeDidFinish), name: .AVPlayerItemDidPlayToEndTime, object: playerItem)
-        
         updateNowPlayingInfo()
     }
 
     func togglePlayPause() {
-        guard let player else { return }
-        if isPlaying { player.pause() } else { player.play() }
+        guard let player = player else { return }
+        if isPlaying {
+            player.pause()
+        } else {
+            player.play()
+        }
         isPlaying.toggle()
         updateNowPlayingInfo()
     }
@@ -137,16 +140,11 @@ final class PodcastViewModel {
     func skipForward(seconds: Double = 30) { seek(to: currentTime + seconds) }
     func skipBackward(seconds: Double = 15) { seek(to: currentTime - seconds) }
 
-    // MARK: - Favorite Logic (CORREÇÃO DO ERRO)
     func toggleFavorite(_ episode: PodcastEpisode) {
         episode.isFavorite.toggle()
-        
-        // Salva no banco de dados
-        let context = modelContext ?? episode.modelContext
-        try? context?.save()
+        try? modelContext?.save()
     }
 
-    // MARK: - Private Helpers & Remote Center
     private func stopPlayer() {
         if let observer = timeObserver {
             player?.removeTimeObserver(observer)
@@ -178,7 +176,6 @@ final class PodcastViewModel {
 
     private func updateNowPlayingInfo() {
         guard let episode = currentEpisode else { return }
-
         var info: [String: Any] = [
             MPMediaItemPropertyTitle: episode.title,
             MPMediaItemPropertyArtist: "Tecnocast",
@@ -187,11 +184,7 @@ final class PodcastViewModel {
             MPMediaItemPropertyPlaybackDuration: duration,
             MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0
         ]
-
-        if let artwork = currentArtwork {
-            info[MPMediaItemPropertyArtwork] = artwork
-        }
-
+        if let artwork = currentArtwork { info[MPMediaItemPropertyArtwork] = artwork }
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
 

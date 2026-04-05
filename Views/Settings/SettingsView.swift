@@ -11,6 +11,10 @@ import SwiftUI
 struct SettingsView: View {
     @AppStorage("appTheme") private var appTheme = 0
     @AppStorage("notificationsEnabled") private var notificationsEnabled = false
+    
+    // ✅ Estado para controlar se o usuário "comprou" a versão sem anúncios
+    @AppStorage("isAdFree") private var isAdFree = false
+    
     @Environment(\.openURL) private var openURL
 
     // MARK: - Propriedades Dinâmicas
@@ -43,6 +47,51 @@ struct SettingsView: View {
 
             // --- LISTA DE AJUSTES ---
             List {
+                // Seção Premium
+                Section("Premium") {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(isAdFree ? .green : TBTheme.accent)
+                                .frame(width: 32, height: 32)
+                            Image(systemName: isAdFree ? "checkmark.seal.fill" : "crown.fill")
+                                .font(.caption)
+                                .foregroundStyle(.white)
+                        }
+                        
+                        VStack(alignment: .leading) {
+                            Text(isAdFree ? "Versão Pro Ativa" : "Remover Anúncios")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                            Text(isAdFree ? "Obrigado por apoiar!" : "Acesso total sem interrupções")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        
+                        Spacer()
+                        
+                        if !isAdFree {
+                            Button("Comprar") {
+                                withAnimation {
+                                    isAdFree = true
+                                }
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(TBTheme.accent)
+                            .controlSize(.small)
+                        } else {
+                            Button("Restaurar") {
+                                withAnimation {
+                                    isAdFree = false
+                                }
+                            }
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+
                 // Seção Aparência
                 Section("Aparência") {
                     VStack(alignment: .leading, spacing: 12) {
@@ -69,6 +118,7 @@ struct SettingsView: View {
 
                 // Seção Links
                 Section("Links Rápidos") {
+                    // ✅ O LinkRow agora será encontrado aqui
                     LinkRow(title: "Site do Tecnoblog", icon: "globe", color: TBTheme.accent) {
                         openURL(URL(string: "https://tecnoblog.net")!)
                     }
@@ -108,7 +158,6 @@ struct SettingsView: View {
         .navigationBarHidden(true)
     }
     
-    // Helper para o ícone dinâmico do tema
     private var themeIcon: String {
         switch appTheme {
         case 1: return "sun.max.fill"
@@ -118,7 +167,7 @@ struct SettingsView: View {
     }
 }
 
-// MARK: - Componente LinkRow
+// MARK: - ✅ Definição do LinkRow (Necessário para resolver o erro)
 
 struct LinkRow: View {
     let title: String
