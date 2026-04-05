@@ -20,18 +20,14 @@ final class PodcastViewModel {
     var errorMessage: String?
     var channelArtworkURL = ""
 
-    // Atualiza o Now Playing e inicia o play quando o episódio muda
+    // ✅ CORREÇÃO: didSet apenas atualiza o Now Playing, sem chamar play()
+    // para evitar loop: play() → didSet → play() → didSet...
     var currentEpisode: PodcastEpisode? {
         didSet {
-            if let episode = currentEpisode {
-                updateNowPlayingInfo()
-                if !isPlaying {
-                    play(episode)
-                }
-            }
+            updateNowPlayingInfo()
         }
     }
-    
+
     var isPlaying = false
     var currentTime: Double = 0
     var duration: Double = 0
@@ -63,7 +59,7 @@ final class PodcastViewModel {
                 for item in items {
                     let id = item.guid.isEmpty ? item.audioURL : item.guid
                     let descriptor = FetchDescriptor<PodcastEpisode>(predicate: #Predicate { $0.id == id })
-                    
+
                     if let existing = try? context.fetch(descriptor).first {
                         loadedEpisodes.append(existing)
                     } else {
@@ -94,8 +90,10 @@ final class PodcastViewModel {
         }
 
         stopPlayer()
+
+        // ✅ Atribui currentEpisode DEPOIS de stopPlayer, sem risco de loop
         currentEpisode = episode
-        
+
         guard let url = URL(string: episode.audioURL) else {
             errorMessage = "URL de áudio inválida."
             return
@@ -113,7 +111,7 @@ final class PodcastViewModel {
 
         player?.play()
         isPlaying = true
-        
+
         let interval = CMTime(seconds: 0.5, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
         timeObserver = player?.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
             guard let self = self else { return }
@@ -121,7 +119,6 @@ final class PodcastViewModel {
             if let d = self.player?.currentItem?.duration.seconds, !d.isNaN, d > 0 {
                 self.duration = d
             }
-            // Salva posição no SwiftData
             self.currentEpisode?.playbackPosition = self.currentTime
             self.updatePlaybackMetadata()
         }
@@ -147,7 +144,7 @@ final class PodcastViewModel {
         currentTime = clamped
         updateNowPlayingInfo()
     }
-    
+
     func skipForward(seconds: Double = 30) { seek(to: currentTime + seconds) }
     func skipBackward(seconds: Double = 15) { seek(to: currentTime - seconds) }
 
@@ -156,7 +153,7 @@ final class PodcastViewModel {
         try? modelContext?.save()
     }
 
-    // MARK: - Private Helpers & Remote Center
+    // MARK: - Private Helpers
     private func stopPlayer() {
         if let observer = timeObserver {
             player?.removeTimeObserver(observer)
@@ -184,10 +181,14 @@ final class PodcastViewModel {
         }
     }
 
-    // ✅ CORREÇÃO: Método restaurado
+    // MARK: - Now Playing
+
+    // ✅ CORREÇÃO PRINCIPAL: artwork baixado em Task.detached (background),
+    // evitando Data(contentsOf:) síncrono na main thread que travava o app.
     func updateNowPlayingInfo() {
         guard let episode = currentEpisode else { return }
 
+        // Atualiza metadados imediatamente (sem artwork) para não bloquear
         var info: [String: Any] = [
             MPMediaItemPropertyTitle: episode.title,
             MPMediaItemPropertyArtist: "Tecnocast",
@@ -196,17 +197,24 @@ final class PodcastViewModel {
             MPMediaItemPropertyPlaybackDuration: duration,
             MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0
         ]
-
-        if let artworkURL = URL(string: channelArtworkURL),
-           let data = try? Data(contentsOf: artworkURL),
-           let image = UIImage(data: data) {
-            info[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
-        }
-
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+
+        // Baixa o artwork em background e atualiza depois
+        let artworkURLString = channelArtworkURL
+        Task.detached {
+            guard let artworkURL = URL(string: artworkURLString),
+                  let data = try? Data(contentsOf: artworkURL),
+                  let image = UIImage(data: data) else { return }
+
+            let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+            await MainActor.run {
+                var current = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
+                current[MPMediaItemPropertyArtwork] = artwork
+                MPNowPlayingInfoCenter.default().nowPlayingInfo = current
+            }
+        }
     }
 
-    // ✅ CORREÇÃO: Método restaurado
     func updatePlaybackMetadata() {
         var info = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
         info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = currentTime
@@ -215,10 +223,10 @@ final class PodcastViewModel {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
 
-    // ✅ CORREÇÃO: Método restaurado
+    // MARK: - Remote Command Center
     private func setupRemoteCommandCenter() {
         let center = MPRemoteCommandCenter.shared()
-        
+
         center.playCommand.addTarget { [weak self] _ in
             self?.togglePlayPause()
             return .success
@@ -239,7 +247,7 @@ final class PodcastViewModel {
             self?.skipBackward()
             return .success
         }
-        
+
         center.skipForwardCommand.preferredIntervals = [30]
         center.skipBackwardCommand.preferredIntervals = [15]
     }

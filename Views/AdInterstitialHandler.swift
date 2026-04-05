@@ -1,3 +1,4 @@
+
 //
 //  AdInterstitialHandler.swift
 //  Tecnoblog
@@ -9,40 +10,39 @@
 import GoogleMobileAds
 import SwiftUI
 
+// Remova o @Observable se ele estiver causando conflito com o NSObject em sua versão
+// Caso contrário, mantenha-o para o funcionamento da UI
 @Observable
 class AdRewardedHandler: NSObject, FullScreenContentDelegate {
     var rewardedAd: RewardedAd?
-    private var isAdReady: Bool = false
     
     private let adUnitID = "ca-app-pub-3940256099942544/1712485313"
     
+    @MainActor
     func loadAd() {
         let request = Request()
-        RewardedAd.load(with: adUnitID, request: request) { ad, error in
+        RewardedAd.load(with: adUnitID, request: request) { [weak self] ad, error in
             if let error = error {
-                self.isAdReady = false
+                print("Erro ao carregar anúncio: \(error.localizedDescription)")
                 return
             }
-            self.rewardedAd = ad
-            self.isAdReady = true
-            self.rewardedAd?.fullScreenContentDelegate = self
+            self?.rewardedAd = ad
+            self?.rewardedAd?.fullScreenContentDelegate = self
         }
     }
     
+    @MainActor
     func showAd(onReward: @escaping () -> Void, onFailure: @escaping () -> Void) {
-        // Se o AdGuard bloqueou ou não carregou, chamamos o onFailure
         guard let rewardedAd = rewardedAd else {
             onFailure()
             loadAd()
             return
         }
         
-        if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let rootVC = scene.windows.first?.rootViewController {
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let rootVC = windowScene.windows.first?.rootViewController {
             
             rewardedAd.present(from: rootVC) {
-                // ✅ ESTE É O ÚNICO LUGAR QUE LIBERA A MATÉRIA
-                // Só roda se o Google confirmar que o vídeo terminou
                 onReward()
             }
         } else {
@@ -50,7 +50,20 @@ class AdRewardedHandler: NSObject, FullScreenContentDelegate {
         }
     }
     
-    func adDidDismissFullScreenContent(_ ad: FullScreenPresentingAd) {
-        loadAd()
+    // MARK: - FullScreenContentDelegate (Correção Swift 6)
+    
+    // Usamos nonisolated para conformar ao protocolo exigido pelo SDK do Google
+    nonisolated func adDidDismissFullScreenContent(_ ad: FullScreenPresentingAd) {
+        // Como loadAd() é @MainActor, precisamos disparar uma Task
+        Task { @MainActor in
+            loadAd()
+        }
+    }
+    
+    nonisolated func ad(_ ad: FullScreenPresentingAd, didFailToPresentFullScreenContentWithError error: Error) {
+        print("Falha ao apresentar anúncio: \(error.localizedDescription)")
+        Task { @MainActor in
+            loadAd()
+        }
     }
 }

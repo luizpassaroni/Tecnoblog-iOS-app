@@ -25,29 +25,27 @@ struct ArticleDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // --- HEADER CORRIGIDO ---
+            // --- HEADER ---
             ZStack(alignment: .bottom) {
                 TBTheme.highlightGradient
                     .ignoresSafeArea(edges: .top)
 
-                // Camada do Logo (Centro Absoluto para alinhar com NewsView)
                 HStack {
                     Spacer()
                     Image("tb-logo")
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(height: 28)
-                        .offset(y: -12) // Alinhamento vertical padronizado
+                        .offset(y: -12)
                     Spacer()
                 }
 
-                // Camada de Botões
                 HStack(alignment: .center) {
                     Button { dismiss() } label: {
                         Image(systemName: "chevron.left")
                             .font(.system(size: 18, weight: .bold))
                     }
-                    .buttonWithGlassEffect()
+                    .tbGlassButton()
                     .frame(width: 44, alignment: .leading)
 
                     Spacer()
@@ -56,7 +54,7 @@ struct ArticleDetailView: View {
                         Image(systemName: "square.and.arrow.up")
                             .font(.system(size: 18, weight: .bold))
                     }
-                    .buttonWithGlassEffect()
+                    .tbGlassButton()
                     .frame(width: 44, alignment: .trailing)
                 }
                 .padding(.horizontal, 16)
@@ -131,6 +129,7 @@ struct ArticleWebView: UIViewRepresentable {
     var onTecnoblogLink: (URL) -> Void
 
     private var uiStyle: UIUserInterfaceStyle { colorScheme == .dark ? .dark : .light }
+
     private var bg: String           { UIColor.systemBackground.toHex(for: uiStyle) }
     private var textColor: String    { UIColor.label.toHex(for: uiStyle) }
     private var textSecColor: String { UIColor.secondaryLabel.toHex(for: uiStyle) }
@@ -148,8 +147,24 @@ struct ArticleWebView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
+
+        let viewportScript = WKUserScript(
+            source: """
+            var meta = document.createElement('meta');
+            meta.name = 'viewport';
+            meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+            document.head.appendChild(meta);
+            """,
+            injectionTime: .atDocumentEnd,
+            forMainFrameOnly: true
+        )
+        config.userContentController.addUserScript(viewportScript)
+
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
+        webView.scrollView.minimumZoomScale = 1.0
+        webView.scrollView.maximumZoomScale = 1.0
+        webView.scrollView.bouncesZoom = false
         webView.isOpaque = false
         webView.backgroundColor = .clear
         webView.scrollView.backgroundColor = .clear
@@ -163,6 +178,8 @@ struct ArticleWebView: UIViewRepresentable {
 
     func updateUIView(_ webView: WKWebView, context: Context) {
         context.coordinator.parent = self
+
+        // ✅ Quando o tema muda, reaplicamos CSS + cores do cabeçalho juntos
         let themeScript = buildThemeOnlyScript()
         if !isLoading && themeScript != context.coordinator.lastThemeScript {
             context.coordinator.lastThemeScript = themeScript
@@ -172,7 +189,7 @@ struct ArticleWebView: UIViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
 
-    // MARK: - Injected Scripts
+    // MARK: - Scripts
 
     func buildScript() -> String {
         let fallbackDate = article.pubDate.formatted(date: .long, time: .omitted)
@@ -186,30 +203,80 @@ struct ArticleWebView: UIViewRepresentable {
             var extractedCategory = '\(fallbackCategory)';
             var extractedAuthor = '\(fallbackAuthor)';
             var extractedDate = '\(fallbackDate)';
-            
-            ['header', 'footer', 'aside', '.sidebar', '.comments-area', '.tb-related', 'nav.tags', '.tags'].forEach(function(sel) {
+
+            // ─── 1. Remove elementos estruturais ────────────────────────────────
+            ['header', 'footer', 'aside', 'nav',
+             '.sidebar', '.comments-area', '.tb-related',
+             'nav.tags', '.tags', '.cookie-bar', '.newsletter-bar'].forEach(function(sel) {
                 document.querySelectorAll(sel).forEach(function(el) { el.remove(); });
             });
 
-            var content = document.querySelector('.entry-content') || document.querySelector('.post-content') || document.querySelector('.article-content');
+            // ─── 2. Isola conteúdo principal ────────────────────────────────────
+            var content = document.querySelector('.entry-content')
+                       || document.querySelector('.post-content')
+                       || document.querySelector('.article-content');
             if (content) {
                 var clone = content.cloneNode(true);
                 document.body.innerHTML = '';
                 document.body.appendChild(clone);
             }
 
+            // ─── 3. Remove containers de anúncio ────────────────────────────────
+            var adSelectors = [
+                'div[id^="div-gpt-ad-"]',
+                'ins.adsbygoogle',
+                '.tb-ad', '.tb-ads', '.ad-wrapper', '.ad-container',
+                '.wp-block-ad', '.widget_custom_html',
+                '[class*="adsbygoogle"]',
+                '[class*="-ad-"]',
+                '[id*="-ad-"]',
+                '[id^="google_ads"]',
+                'iframe[src*="doubleclick"]',
+                'iframe[src*="googlesyndication"]',
+                'iframe[src*="adservice"]'
+            ];
+            adSelectors.forEach(function(sel) {
+                document.querySelectorAll(sel).forEach(function(el) { el.remove(); });
+            });
+
+            // ─── 4. Colapsa blocos vazios ────────────────────────────────────────
+            document.querySelectorAll('div, section, p').forEach(function(el) {
+                var hasText  = el.innerText && el.innerText.trim().length > 0;
+                var hasImage = el.querySelector('img') !== null;
+                var rect = el.getBoundingClientRect();
+                if (!hasText && !hasImage && rect.height > 40) {
+                    el.style.display = 'none';
+                }
+            });
+
+            // ─── 5. Injeta cabeçalho nativo ─────────────────────────────────────
+            // As cores do autor/data/divider são definidas via CSS variables
+            // para poderem ser atualizadas dinamicamente sem recriar o DOM.
             var hdr = document.createElement('div');
             hdr.id = 'tb-native-header';
-            hdr.innerHTML = '<div style="padding: 0 16px;"><span style="background:\(accentColor);display:inline-block;color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;margin-bottom:10px;">' + extractedCategory + '</span><h1 style="font-size:22px;font-weight:700;line-height:1.3;margin:0 0 8px 0;">' + extractedTitle + '</h1><div style="font-size:13px;color:\(textSecColor);">Por ' + extractedAuthor + ' • ' + extractedDate + '</div><div style="height:1px;background:\(borderColor);margin:12px 0 20px 0;"></div></div>';
+            hdr.innerHTML =
+                '<div style="padding: 0 16px;">' +
+                    '<span style="background:\(accentColor);display:inline-block;color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;margin-bottom:10px;">'
+                        + extractedCategory +
+                    '</span>' +
+                    '<h1 style="font-size:22px;font-weight:700;line-height:1.3;margin:0 0 8px 0;">'
+                        + extractedTitle +
+                    '</h1>' +
+                    // ✅ Usa classe tb-meta para que o buildThemeOnlyScript()
+                    // possa atualizar a cor via CSS sem recriar o elemento
+                    '<div class="tb-meta" style="font-size:13px;">Por ' + extractedAuthor + ' \u{2022} ' + extractedDate + '</div>' +
+                    '<div class="tb-divider" style="height:1px;margin:12px 0 20px 0;"></div>' +
+                '</div>';
             document.body.insertBefore(hdr, document.body.firstChild);
 
+            // ─── 6. Imagens clicáveis ────────────────────────────────────────────
             document.querySelectorAll('img').forEach(function(img) {
-                if (img.src && !img.closest('a')) {
-                    var link = document.createElement('a');
-                    link.href = img.src;
-                    img.parentNode.insertBefore(link, img);
-                    link.appendChild(img);
-                }
+                img.style.cursor = 'pointer';
+                img.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.location.href = 'tbimage://' + encodeURIComponent(img.src);
+                });
             });
 
             \(buildThemeOnlyScript())
@@ -217,39 +284,71 @@ struct ArticleWebView: UIViewRepresentable {
         """
     }
 
+    // ✅ CORREÇÃO PRINCIPAL: além do CSS global, atualiza explicitamente
+    // as cores de .tb-meta e .tb-divider que estavam hardcoded no HTML
+    // e por isso não reagiam à mudança de tema.
     func buildThemeOnlyScript() -> String {
         """
         (function applyTBTheme() {
+            // CSS global
             var old = document.getElementById('tb-theme');
             if (old) old.parentNode.removeChild(old);
-            var css = 'html, body { background: \(bg) !important; } body { margin: 0 !important; padding: 0 !important; color: \(textColor) !important; font-family: -apple-system, sans-serif !important; font-size: \(fontSizePx)px !important; line-height: 1.75 !important; }';
-            css += 'a { color: \(linkColor) !important; text-decoration: none !important; } .entry-content, article { padding: 0 16px 80px 16px !important; }';
+            var css = 'html, body { background: \(bg) !important; }';
+            css += 'body { margin: 0 !important; padding: 0 !important; color: \(textColor) !important; font-family: -apple-system, sans-serif !important; font-size: \(fontSizePx)px !important; line-height: 1.75 !important; }';
+            css += 'a { color: \(linkColor) !important; text-decoration: none !important; }';
+            css += '.entry-content, article { padding: 0 16px 80px 16px !important; }';
             css += 'img { max-width: 100% !important; height: auto !important; border-radius: 8px !important; margin: 12px 0 !important; cursor: pointer; }';
             var s = document.createElement('style');
             s.id = 'tb-theme';
             s.innerHTML = css;
             document.head.appendChild(s);
+
+            // ✅ Atualiza inline as cores do cabeçalho nativo que não são
+            // cobertas pelo CSS global (autor, data e divisor).
+            document.querySelectorAll('.tb-meta').forEach(function(el) {
+                el.style.color = '\(textSecColor)';
+            });
+            document.querySelectorAll('.tb-divider').forEach(function(el) {
+                el.style.background = '\(borderColor)';
+            });
         })();
         """
     }
 
+    // MARK: - Coordinator
+
     final class Coordinator: NSObject, WKNavigationDelegate {
         var parent: ArticleWebView
         var lastThemeScript: String = ""
+
         init(parent: ArticleWebView) { self.parent = parent }
 
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-            guard let url = navigationAction.request.url, navigationAction.navigationType == .linkActivated else {
+            guard let url = navigationAction.request.url else {
                 decisionHandler(.allow); return
             }
+
+            if url.scheme == "tbimage" {
+                decisionHandler(.cancel)
+                let encoded = url.absoluteString.replacingOccurrences(of: "tbimage://", with: "")
+                if let decoded = encoded.removingPercentEncoding,
+                   let imageURL = URL(string: decoded) {
+                    DispatchQueue.main.async { self.presentImageViewer(imageURL) }
+                }
+                return
+            }
+
+            guard navigationAction.navigationType == .linkActivated else {
+                decisionHandler(.allow); return
+            }
+
             decisionHandler(.cancel)
             DispatchQueue.main.async {
-                let isImage = ["jpg", "jpeg", "png", "webp"].contains(url.pathExtension.lowercased())
-                if url.host?.contains("tecnoblog.net") == true && !isImage {
+                if url.host?.contains("tecnoblog.net") == true {
                     self.parent.onTecnoblogLink(url)
                 } else {
                     let safari = SFSafariViewController(url: url)
-                    UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.windows.first { $0.isKeyWindow } }.first?.rootViewController?.present(safari, animated: true)
+                    self.topViewController()?.present(safari, animated: true)
                 }
             }
         }
@@ -264,18 +363,155 @@ struct ArticleWebView: UIViewRepresentable {
                 }
             }
         }
+
+        private func presentImageViewer(_ url: URL) {
+            let imageVC = ImageViewerController(imageURL: url)
+            let nav = UINavigationController(rootViewController: imageVC)
+            nav.modalPresentationStyle = .fullScreen
+            topViewController()?.present(nav, animated: true)
+        }
+
+        private func topViewController() -> UIViewController? {
+            UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .flatMap { $0.windows }
+                .first { $0.isKeyWindow }?
+                .rootViewController?
+                .topmostViewController()
+        }
     }
+}
+
+// MARK: - Image Viewer Controller
+
+final class ImageViewerController: UIViewController {
+    private let imageURL: URL
+    private let scrollView = UIScrollView()
+    private let imageView = UIImageView()
+    private var activityIndicator = UIActivityIndicatorView(style: .large)
+
+    init(imageURL: URL) {
+        self.imageURL = imageURL
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .black
+
+        navigationItem.leftBarButtonItem = UIBarButtonItem(
+            image: UIImage(systemName: "xmark"),
+            style: .plain, target: self, action: #selector(closeTapped)
+        )
+        navigationItem.rightBarButtonItem = UIBarButtonItem(
+            image: UIImage(systemName: "square.and.arrow.up"),
+            style: .plain, target: self, action: #selector(shareTapped)
+        )
+        navigationController?.navigationBar.tintColor = .white
+        navigationController?.navigationBar.barStyle = .black
+
+        scrollView.frame = view.bounds
+        scrollView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        scrollView.minimumZoomScale = 1.0
+        scrollView.maximumZoomScale = 4.0
+        scrollView.delegate = self
+        scrollView.showsHorizontalScrollIndicator = false
+        scrollView.showsVerticalScrollIndicator = false
+        view.addSubview(scrollView)
+
+        imageView.contentMode = .scaleAspectFit
+        imageView.frame = view.bounds
+        imageView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        scrollView.addSubview(imageView)
+
+        activityIndicator.color = .white
+        activityIndicator.center = view.center
+        activityIndicator.autoresizingMask = [.flexibleTopMargin, .flexibleBottomMargin,
+                                              .flexibleLeftMargin, .flexibleRightMargin]
+        view.addSubview(activityIndicator)
+        activityIndicator.startAnimating()
+
+        let doubleTap = UITapGestureRecognizer(target: self, action: #selector(handleDoubleTap(_:)))
+        doubleTap.numberOfTapsRequired = 2
+        scrollView.addGestureRecognizer(doubleTap)
+
+        loadImage()
+    }
+
+    private func loadImage() {
+        URLSession.shared.dataTask(with: imageURL) { [weak self] data, _, _ in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                self.activityIndicator.stopAnimating()
+                if let data = data, let image = UIImage(data: data) {
+                    self.imageView.image = image
+                }
+            }
+        }.resume()
+    }
+
+    @objc private func closeTapped() { dismiss(animated: true) }
+
+    @objc private func shareTapped() {
+        guard let image = imageView.image else { return }
+        let activity = UIActivityViewController(activityItems: [image], applicationActivities: nil)
+        present(activity, animated: true)
+    }
+
+    @objc private func handleDoubleTap(_ gesture: UITapGestureRecognizer) {
+        if scrollView.zoomScale > 1 {
+            scrollView.setZoomScale(1, animated: true)
+        } else {
+            let point = gesture.location(in: imageView)
+            let rect = CGRect(x: point.x - 50, y: point.y - 50, width: 100, height: 100)
+            scrollView.zoom(to: rect, animated: true)
+        }
+    }
+}
+
+extension ImageViewerController: UIScrollViewDelegate {
+    func viewForZooming(in scrollView: UIScrollView) -> UIView? { imageView }
 }
 
 // MARK: - Extensions
 
 extension View {
-    func buttonWithGlassEffect() -> some View {
+    func tbGlassButton() -> some View {
         self.buttonStyle(.plain)
             .frame(width: 44, height: 44)
             .contentShape(Circle())
             .foregroundStyle(.primary)
-            .background(.ultraThinMaterial, in: Circle())
+            .modifier(GlassButtonModifier())
+    }
+}
+
+private struct GlassButtonModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content
+                .background(.clear, in: Circle())
+                .glassEffect(.regular.interactive(), in: Circle())
+        } else {
+            content
+                .background(.ultraThinMaterial, in: Circle())
+        }
+    }
+}
+
+private extension UIViewController {
+    func topmostViewController() -> UIViewController {
+        if let presented = presentedViewController {
+            return presented.topmostViewController()
+        }
+        if let nav = self as? UINavigationController {
+            return nav.visibleViewController?.topmostViewController() ?? self
+        }
+        if let tab = self as? UITabBarController {
+            return tab.selectedViewController?.topmostViewController() ?? self
+        }
+        return self
     }
 }
 
